@@ -66,7 +66,8 @@ void load_and_run_elf(char **exe)
 	int (*_start)() = (int (*)())((memory_allocated) + ((ehdr->e_entry) - (phdr->p_vaddr)));
 
 	// 6. Call the "_start" method and print the value returned from the "_start"
-	printf("User _start return value = %d\n", _start());
+	int result = _start();
+	printf("User _start return value = %d\n", result);
 }
 
 // Checks for ELF File

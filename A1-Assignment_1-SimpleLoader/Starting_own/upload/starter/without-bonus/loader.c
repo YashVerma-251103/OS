@@ -1,152 +1,188 @@
 #include "loader.h"
+#include <stdbool.h>
 
 Elf32_Ehdr *ehdr;
 Elf32_Phdr *phdr;
 int fd;
-void *data;
-int filesize;
-void *virtual_mem;
+
+void *memory_allocated;
+void *data_ptr;
+int file_size;
 
 void loader_cleanup()
-// release memory and other cleanups
 {
-	munmap(virtual_mem, phdr->p_memsz);
-	free(data);
+	munmap(memory_allocated, phdr->p_memsz);
+	free(data_ptr);
 	close(fd);
 }
-
 void load_and_run_elf(char **exe)
-// Load and run the ELF executable file
 {
-	const char *target_file_pointer = exe[1];
-	fd = open(target_file_pointer, O_RDONLY);
+	fd = open(exe[1], O_RDONLY);
 
 	// 1. Load entire binary content into the memory from the ELF file.
 	if (fd == -1)
 	{
 		// open will return -1 if file is not found or there is some error in opening the file
-		printf("Error in opening file\n");
+		printf("Error in opening file!\n");
 		return;
 	}
-	filesize = lseek(fd, 0, SEEK_END);
-	data = malloc(filesize);
+
+	file_size = lseek(fd, 0, SEEK_END);
+	data_ptr = malloc(file_size);
+
 	lseek(fd, 0, SEEK_SET);
-	read(fd, data, filesize);
-	ehdr = (Elf32_Ehdr *)(data);
-	phdr = (Elf32_Phdr *)(data + ehdr->e_phoff);
+	read(fd, data_ptr, file_size);
 
-	// 2. Iterate through the PHDR table and find the section of PT_LOAD type that contains the address of the entrypoint method in fib.c
-	int i = 0;
-	while (((phdr->p_type != PT_LOAD) || (((phdr->p_vaddr) + (phdr->p_memsz)) < (ehdr->e_entry))) && (i < ehdr->e_phnum))
+	ehdr = (Elf32_Ehdr *)(data_ptr);
+	phdr = (Elf32_Phdr *)(data_ptr + ehdr->e_phoff);
+
+	// 2. Iterate through the PHDR table and find the section of PT_LOAD
+	//    type that contains the address of the entrypoint method in fib.c
+	int seg_index = 0;
+	while ((((phdr->p_type) != PT_LOAD) || (((phdr->p_vaddr) + (phdr->p_memsz)) < (ehdr->e_entry))) && (seg_index < ehdr->e_phnum))
 	{
-		phdr = &phdr[1];
-		i++;
+		// phdr = (Elf32_Phdr *)((char *)phdr + (ehdr->e_phentsize));
+		phdr++;
+		seg_index++;
 	}
-	if (i == ehdr->e_phnum)
+	if (seg_index == ehdr->e_phnum)
 	{
-		printf("Error: couldn't find the entry point\n");
+		printf("Entry Point 404!\n");
 		return;
 	}
 
-	// 3. Allocate memory of the size "p_memsz" using mmap function and then copy the segment content
-
-	virtual_mem = mmap(NULL, phdr->p_memsz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
-	if (virtual_mem == MAP_FAILED)
+	// 3. Allocate memory of the size "p_memsz" using mmap function
+	//    and then copy the segment content
+	memory_allocated = mmap(NULL, (phdr->p_memsz), (PROT_READ | PROT_WRITE | PROT_EXEC), (MAP_ANONYMOUS | MAP_PRIVATE), 0, 0);
+	if (memory_allocated == MAP_FAILED)
 	{
-		printf("Error in allocating memory\n");
+		printf("Allocation o0f memory failed!\n");
 		return;
 	}
-	memcpy(virtual_mem, data + phdr->p_offset, phdr->p_filesz);
+	memcpy(memory_allocated, data_ptr + phdr->p_offset, phdr->p_filesz);
 
 	// 4. Navigate to the entrypoint address into the segment loaded in the memory in above step
 	// 5. Typecast the address to that of function pointer matching "_start" method in fib.c.
-
-	int (*_start)() = (int (*)())(virtual_mem + ehdr->e_entry - phdr->p_vaddr);
+	int (*_start)() = (int (*)())((memory_allocated) + ((ehdr->e_entry) - (phdr->p_vaddr)));
 
 	// 6. Call the "_start" method and print the value returned from the "_start"
-	int result = _start();
-	printf("User _start return value = %d\n", result);
+	printf("User _start return value = %d\n", _start());
 }
 
-// bool Elf_is_Correct()
+// Checks for ELF File
+bool null_file_check(int file)
+{
+	if (file == -1)
+	{
+		printf("ELF file not found!\n");
+		return false;
+	}
+	return true;
+}
+bool file_validity_check(Elf32_Ehdr e_hdr)
+{
+	if ((memcmp((e_hdr.e_ident), ELFMAG, SELFMAG)) != 0)
+	{
+		printf("Not a valid ELF File!\n");
+		return false;
+	}
+	return true;
+}
+bool executable_file_check(Elf32_Ehdr e_hdr)
+{
+	if ((e_hdr.e_type) != (ET_EXEC))
+	{
+		printf("ELF file not executable!\n");
+		return false;
+	}
+	return true;
+}
+bool section_header_check(Elf32_Ehdr e_hdr)
+{
+	// SH Number Check
+	if (!(0 < (e_hdr.e_shnum) <= (SHN_LORESERVE)))
+	{
+		printf("Invalid number of Section Headers!\n");
+		return false;
+	}
+
+	// SH Size Check
+	if ((e_hdr.e_shentsize) != (sizeof(Elf32_Shdr)))
+	{
+		printf("Invalid Size of Section Header! \n");
+		return false;
+	}
+	return true;
+}
+bool program_header_check(Elf32_Ehdr e_hdr)
+{
+	// PH Offset Check
+	if (!((e_hdr.e_phoff) < ((e_hdr.e_phnum) * (e_hdr.e_phentsize))))
+	{
+		printf("Invalid Offset for Program Header!\n");
+		return false;
+	}
+
+	// PH Number Check
+	if (!(0 < (e_hdr.e_phnum) <= (PN_XNUM)))
+	{
+		printf("Invalid number of Program Headers!\n");
+		return false;
+	}
+
+	// PH Size Check
+	if ((e_hdr.e_phentsize) != (sizeof(Elf32_Phdr)))
+	{
+		printf("Invalid size of Program Header!\n");
+		return false;
+	}
+
+	return true;
+}
+bool elf_file_check(int e_file, Elf32_Ehdr e_hdr)
+{
+	bool file_check = null_file_check(e_file);
+	if (file_check)
+	{
+		file_check = file_validity_check(e_hdr);
+		if (!(file_check))
+			return false;
+		file_check = executable_file_check(e_hdr);
+		if (!(file_check))
+			return false;
+		file_check = section_header_check(e_hdr);
+		if (!(file_check))
+			return false;
+		file_check = program_header_check(e_hdr);
+		if (!(file_check))
+			return false;
+
+		return true;
+	}
+	return false;
+}
 
 int main(int argc, char **argv)
 {
-	// Need exactly 2 arguments -- one is the executable and the other is the ELF file
 	if (argc != 2)
 	{
 		printf("Usage: %s <ELF Executables>\n", argv[0]);
 		exit(1);
 	}
 
-	// Open the ELF file and read the ELF header
-	const char *elf_p = argv[1];
-	int elf_f = open(elf_p, O_RDONLY);
-	Elf32_Ehdr elf_h;
-	read(elf_f, &elf_h, sizeof(Elf32_Ehdr));
+	int e_file = open(argv[1], O_RDONLY);
+	Elf32_Ehdr e_hdr;
+	read(e_file, (&e_hdr), (sizeof(Elf32_Ehdr)));
 
-	
 	// 1. carry out necessary checks on the input ELF file
-	
-	if (elf_f == -1)
-	// Checking if file is NULL or not
+	if ((elf_file_check(e_file, e_hdr)))
 	{
-		printf("No elf file found\n");
-		exit(1);
-	}
+		// 2. passing it to the loader for carrying out the loading/execution
+		load_and_run_elf(argv);
 
-	if (memcmp(elf_h.e_ident, ELFMAG, SELFMAG) != 0)
-	// Checking Magic Number
-	{
-		printf("Invalid ELF File\n");
-		close(elf_f);
-		exit(1);
+		// 3. invoke the cleanup routine inside the loader
+		loader_cleanup();
 	}
-
-	if (elf_h.e_type != ET_EXEC)
-	// Checking the whether it is executable or not
-	{
-		printf("Not an executable ELF file\n");
-		close(elf_f);
-		exit(1);
-	}
-	
-	// Checking all properties of Section Headers
-	if (elf_h.e_shnum == 0 || elf_h.e_shnum > SHN_LORESERVE)
-	{
-		printf("Invalid number of section headers\n");
-		exit(1);
-	}
-	if (elf_h.e_shentsize != sizeof(Elf32_Shdr))
-	{
-		printf("Invalid section header size\n");
-		exit(1);
-	}
-
-	// Checking all properties of Program Headers
-	if (elf_h.e_phoff >= elf_h.e_phnum * elf_h.e_phentsize)
-	{
-		printf("Invalid Offset for Program Header\n");
-		exit(1);
-	}
-	if (elf_h.e_phnum == 0 || elf_h.e_phnum > PN_XNUM)
-	{
-		printf("Invalid number of program headers\n");
-		exit(1);
-	}
-	if (elf_h.e_phentsize != sizeof(Elf32_Phdr))
-	{
-		printf("Invalid program header size\n");
-		exit(1);
-	}
-	close(elf_f);
-
-
-	// 2. passing it to the loader for carrying out the loading/execution
-	load_and_run_elf(argv);
-
-	// 3. invoke the cleanup routine inside the loader
-	loader_cleanup();
-
+	close(e_file);
 	return 0;
 }

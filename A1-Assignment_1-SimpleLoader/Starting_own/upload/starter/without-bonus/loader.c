@@ -41,8 +41,8 @@ void load_and_run_elf(char **exe)
 	int seg_index = 0;
 	while ((((phdr->p_type) != PT_LOAD) || (((phdr->p_vaddr) + (phdr->p_memsz)) < (ehdr->e_entry))) && (seg_index < ehdr->e_phnum))
 	{
-		// phdr = (Elf32_Phdr *)((char *)phdr + (ehdr->e_phentsize));
-		phdr++;
+		phdr = (Elf32_Phdr *)((char *)phdr + (ehdr->e_phentsize));
+		// phdr++;
 		seg_index++;
 	}
 	if (seg_index == ehdr->e_phnum)
@@ -80,7 +80,7 @@ bool null_file_check(int file)
 	}
 	return true;
 }
-bool file_validity_check(Elf32_Ehdr e_hdr)
+bool magic_number_check(Elf32_Ehdr e_hdr)
 {
 	if ((memcmp((e_hdr.e_ident), ELFMAG, SELFMAG)) != 0)
 	{
@@ -145,7 +145,7 @@ bool elf_file_check(int e_file, Elf32_Ehdr e_hdr)
 	bool file_check = null_file_check(e_file);
 	if (file_check)
 	{
-		file_check = file_validity_check(e_hdr);
+		file_check = magic_number_check(e_hdr);
 		if (!(file_check))
 			return false;
 		file_check = executable_file_check(e_hdr);

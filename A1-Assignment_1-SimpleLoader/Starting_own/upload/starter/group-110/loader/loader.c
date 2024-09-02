@@ -25,8 +25,6 @@ void loader_cleanup()
 void load_and_run_elf(char **exe)
 {
 	fd = open(exe[1], O_RDONLY);
-
-	// 1. Load entire binary content into the memory from the ELF file.
 	if (fd == -1)
 	{
 		// open will return -1 if file is not found or there is some error in opening the file
@@ -34,6 +32,7 @@ void load_and_run_elf(char **exe)
 		return;
 	}
 
+	// 1. Load entire binary content into the memory from the ELF file.
 	file_size = lseek(fd, 0, SEEK_END);
 	data_ptr = malloc(file_size);
 
@@ -49,7 +48,6 @@ void load_and_run_elf(char **exe)
 	while ((((phdr->p_type) != PT_LOAD) || (((phdr->p_vaddr) + (phdr->p_memsz)) < (ehdr->e_entry))) && (seg_index < ehdr->e_phnum))
 	{
 		phdr = (Elf32_Phdr *)((char *)phdr + (ehdr->e_phentsize));
-		// phdr++;
 		seg_index++;
 	}
 	if (seg_index == ehdr->e_phnum)
@@ -66,6 +64,7 @@ void load_and_run_elf(char **exe)
 		printf("Allocation of memory failed!\n");
 		return;
 	}
+	// Copying the segment content
 	memcpy(memory_allocated, data_ptr + phdr->p_offset, phdr->p_filesz);
 
 	// 4. Navigate to the entrypoint address into the segment loaded in the memory in above step

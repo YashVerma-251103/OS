@@ -9,12 +9,19 @@ void *memory_allocated;
 void *data_ptr;
 int file_size;
 
+/*
+ * release memory and other cleanups
+ */
 void loader_cleanup()
 {
 	munmap(memory_allocated, phdr->p_memsz);
 	free(data_ptr);
 	close(fd);
 }
+
+/*
+ * Load and run the ELF executable file
+ */
 void load_and_run_elf(char **exe)
 {
 	fd = open(exe[1], O_RDONLY);
@@ -47,7 +54,7 @@ void load_and_run_elf(char **exe)
 	}
 	if (seg_index == ehdr->e_phnum)
 	{
-		printf("Entry Point 404!\n");
+		printf("Entry Point missing!\n");
 		return;
 	}
 
@@ -82,7 +89,7 @@ bool null_file_check(int file)
 }
 bool magic_number_check(Elf32_Ehdr e_hdr)
 {
-	if ((memcmp((e_hdr.e_ident), ELFMAG, SELFMAG)) != 0)
+	if ((memcmp((e_hdr.e_ident), ELFMAG, 4)) != 0)
 	{
 		printf("Not a valid ELF File!\n");
 		return false;

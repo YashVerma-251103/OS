@@ -63,7 +63,7 @@ void load_and_run_elf(char **exe)
 	memory_allocated = mmap(NULL, (phdr->p_memsz), (PROT_READ | PROT_WRITE | PROT_EXEC), (MAP_ANONYMOUS | MAP_PRIVATE), 0, 0);
 	if (memory_allocated == MAP_FAILED)
 	{
-		printf("Allocation o0f memory failed!\n");
+		printf("Allocation of memory failed!\n");
 		return;
 	}
 	memcpy(memory_allocated, data_ptr + phdr->p_offset, phdr->p_filesz);

@@ -1,5 +1,5 @@
-/* Summary */
-/* You have to implement a SimpleShell that waits for user input, executes commands provided in the user input, and then repeats until terminated using ctrl-c. You don't have to implement the individual Unix commands that will execute on your SimpleShell. */
+/* Summary
+You have to implement a SimpleShell that waits for user input, executes commands provided in the user input, and then repeats until terminated using ctrl-c. You don't have to implement the individual Unix commands that will execute on your SimpleShell. */
 
 /* Instructions
 2. SimpleShell Implementation (“simple-shell.c”)
@@ -59,7 +59,7 @@ void shell_loop() {
         status = launch(command);
     } while (status);   
 }
-/* explaination -- for -- shell_loop() function
+/* reason -- for -- shell_loop() function
     Shell runs in an infinite loop and reads the user input to execute
     Should cease execution if it was unable to execute user command*/
 int launch(char *command){
@@ -67,26 +67,80 @@ int launch(char *command){
     status create_process_and_run(command);
     return status;
 }
-/* explaination -- for -- launch(char *) function
+/* reason -- for -- launch(char *) function
     The launch method accepts the user input (command name along with arguments to it)
     It will create a new process that would execute the user command and return execution status.*/
-int create_process_and_run(char* command) {
-int status = fork();
-if(status < 0) {
-printf("Something bad happened\n");
-exit(0);
-} else if(status == 0) {
-printf("I am the child (%d)\n",getpid());
-} else {
-int ret;
-int pid = wait(&ret);
-if(WIFEXITED(ret)) {
-printf("%d Exit =%d\n",pid,WEXITSTATUS(ret));
-} else {
-printf("Abnormal termination of %d\n",pid);
+
+int create_process_and_run_OBEDIENT_CHILD(char* command) {
+    int status = fork();
+    if(status < 0) {
+        printf("Something bad happened\n");
+    } else if(status == 0) {
+        printf("I am the child process\n");
+        exit(0);
+    } else {
+        printf("I am the parent Shell\n");
+    }
+    // ....
+    return 0;
 }
-printf("I am the parent Shell\n");
+/* reason -- for above -- create_process_and_run_OBEDIENT_CHILD(char *) function
+    exit syscall allows to send a specific termination code (exit status) from  a child process to the parent upon termination
+        - "signal" is sent to the parent (inter-process communication)
+        - In case of abnormal termination of child, the exit status is generated and send by the kernel
+    exit carries out process cleanup – reclaiming memory, flushes buffers, closing fds, etc.
+    */
+
+int create_process_and_run_ACT_OF_GOOD_PARENTING(char* command) {
+    int status = fork();
+    if(status < 0) {
+        printf("Something bad happened\n");
+        exit(0);
+    } else if(status == 0) {
+        printf("I am the child (%d)\n",getpid());
+    } else {
+        int ret;
+        int pid = wait(&ret);
+        if(WIFEXITED(ret)) {
+            printf("%d Exit =%d\n",pid,WEXITSTATUS(ret));
+        } else {
+            printf("Abnormal termination of %d\n",pid);
+        }
+        printf("I am the parent Shell\n");
+    }
+    return 0;
 }
-return 0;
+/* reason -- for above -- create_process_and_run_ACT_OF_GOOD_PARENTING(char *) function
+    wait and waitpid allows the parent process to block until the child process terminates
+        - wait will block only for the first child, whereas waitpid can be used for a specific child
+        - Returns the child’s PID
+        - Used for retrieving exit status from child
+    -Child is zombie when it has terminated but has its exit code remaining in the process table as it is waiting for the parent to read the status.
+    -Orphaned children outliving their parent’s lifetime are adopted by the mother-of-all-processes (init).
+    */
+
+int create_process_and_run_CHILD_SHOULD_NOT_RUN_FAMILY_BUSINESS(char* command) {
+    int status = fork();
+    if(status < 0) {
+        printf("Something bad happened\n");
+        exit(0);
+    } else if(status == 0) {
+        printf("I am the child process\n");
+        char* args[2] = {"./fib", "40"};
+        execv(args[0], args);
+        printf("I should never print\n");
+    } else {
+        printf("I am the parent Shell\n");
+    }
+    // ....
+    return 0;
 }
+/* reason -- for above -- create_process_and_run_CHILD_SHOULD_NOT_RUN_FAMILY_BUSINESS
+    Main goal for creating a child process is to let it live its own free life without depending on its parent
+        - The child won’t let go off the parent’s property (code path) until its forced to call exec
+    An exec calls the OS loader internally that loads the ELF file with its command line argument as specified in the argument list
+    */
+
+
+
 #include <stdio.h>

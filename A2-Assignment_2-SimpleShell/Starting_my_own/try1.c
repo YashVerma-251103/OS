@@ -157,22 +157,34 @@ For keeping history of commands, recovering history using arrow keys and handlin
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
-// #include <stdlib.h>
+#include <sys/time.h>
+#include <time.h>
+#include <sys/types.h>
+// #include <errno.h>
 // #include <sys/wait.h>
-// #include 
-
+// #include <sys/stat.h>
+// #include <fcntl.h>
 
 
 // Defining Constants
 #define max_commands_to_store_in_history 100
 #define max_input_size_of_command 128
-#define make_command struct command
+#define make_command struct Command
+#define time_value struct timeval
 
 // Making a structure for input command
-struct command {
-    __pid_t pid;
+struct Command {
+    // __pid_t pid;
+    // changed to -- pid_t -- to solve potability issues
+    pid_t pid;
+
     char* command[max_input_size_of_command];
-    __time_t time_to_execute;
+
+    // __time_t start_of_execution;
+    // changed to -- time_t -- to solve potability issues
+    time_t start_of_execution;
+    time_t end_of_execution;
+
     long duration_of_execution;
 
 };  
@@ -189,15 +201,31 @@ static void signal_handler(int signo){
         printf("\n%5s\t%64s\t%10s\t%12s\n", "PID", "Command", "Execution Time", "Duration of Execution (ms)");
         for (int i = 0; i < current_command_index; i++)
         {
-            printf("%5d\t%64s\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].time_to_execute, command_history[i].duration_of_execution);
+            printf("%5d\t%64s\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution, command_history[i].duration_of_execution);
         }
         _exit(1);
     }
 }
 
-int launch(char *command){
+int launch(char *command_given){
     int status=0;
     
+    // making a structure to store the start and end time of the command
+    time_value start, end;
+
+    // getting the start time of the command
+    gettimeofday(&start, 0);
+
+    if((memcmp(command_given, "./", 2) == 0) && (memcmp((command_given + strlen(command_given) - 2), ".sh", 3))){
+        // there was a file reference given -- so reading it and executing the commands (if it was .sh file)
+        status = read_file_and_run(command_given + 2);
+    } else {
+        status = background_process(command_given);
+    }
+
+
+
+
     return status;
 }
 

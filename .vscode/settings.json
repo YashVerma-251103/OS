@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "loader.h": "c"
+        "loader.h": "c",
+        "types.h": "c"
     }
 }

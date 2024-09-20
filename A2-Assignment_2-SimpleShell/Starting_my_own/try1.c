@@ -155,9 +155,71 @@ For keeping history of commands, recovering history using arrow keys and handlin
 // Libraries
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
-#include <stdlib.h>
+// #include <stdlib.h>
+// #include <sys/wait.h>
+// #include 
+
+
+
+// Defining Constants
+#define max_commands_to_store_in_history 100
+#define max_input_size_of_command 128
+#define make_command struct command
+
+// Making a structure for input command
+struct command {
+    __pid_t pid;
+    char* command[max_input_size_of_command];
+    __time_t time_to_execute;
+    long duration_of_execution;
+
+};  
+
+// Global Variables and Data Structures
+make_command command_history[max_commands_to_store_in_history];
+int current_command_index = 0;
+
+// signal handler to end the shell
+static void signal_handler(int signo){
+    // caught Ctrl+C -- SIGINT
+    if(signo == SIGINT){
+        // printing all the commands that were executed
+        printf("\n%5s\t%64s\t%10s\t%12s\n", "PID", "Command", "Execution Time", "Duration of Execution (ms)");
+        for (int i = 0; i < current_command_index; i++)
+        {
+            printf("%5d\t%64s\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].time_to_execute, command_history[i].duration_of_execution);
+        }
+        _exit(1);
+    }
+}
+
+int launch(char *command){
+    int status=0;
+    
+    return status;
+}
 
 int main(){
-    
+    // making a signal handler
+    signal(SIGINT, signal_handler);
+    int status;
+    char command[max_input_size_of_command];
+    do {
+        printf("vemy@simplishell:~$ ");
+        fflush(stdout);
+        
+        // reading the input_command from stdin and storing it in command[]
+        fgets(command, max_input_size_of_command, stdin);
+        
+        // removing the newline character from the end of the command
+        // command[strcspn(command, "\n")] = 0;
+        // a better approach
+        command[strlen(command) - 1] = 0;
+
+        // executing the command and checking its status
+        status = launch(command);
+    } while (status);
+
 }

@@ -193,6 +193,24 @@ struct Command {
 make_command command_history[max_commands_to_store_in_history];
 int current_command_index = 0;
 
+
+unsigned long elapse_time(time_value *start, time_value *end){
+    unsigned long  time;
+
+    time=(((end->tv_sec*1000000)+end->tv_usec) - ((start->tv_sec*1000000)+start->tv_usec))/1000;
+
+    return time;
+}
+
+void store_command(pid_t pid, char *command_to_store, time_t start_time, time_t end_time, double elapse_duration){
+    command_history[current_command_index].pid=pid;
+    strcpy(command_history[current_command_index].command,command_to_store);
+    command_history[current_command_index].start_of_execution = start_time;
+    command_history[current_command_index].end_of_execution = end_time;
+    command_history[current_command_index].duration_of_execution = elapse_duration;
+    current_command_index++;
+}
+
 // signal handler to end the shell
 static void signal_handler(int signo){
     // caught Ctrl+C -- SIGINT
@@ -206,6 +224,57 @@ static void signal_handler(int signo){
         _exit(1);
     }
 }
+
+
+// int background_process(char *command){
+//     pid_t pid;
+//     int status;
+//     char *args[max_input_size_of_command];
+//     char *pch = strtok(command, " ");
+//     int counter = 0;
+//     while (pch != NULL)
+//     {
+//         args[counter++] = pch;
+//         pch = strtok(NULL, " ");
+//     }
+//     args[counter] = NULL;
+// 
+//     pid = fork();
+//     if(pid < 0){
+//         // fork failed
+//         printf("Fork failed\n");
+//         return 1;
+//     } else if(pid == 0){
+//         // child process
+//         execvp(args[0], args);
+//         // execvp failed
+//         printf("Command not found\n");
+//         return 1;
+//     } else {
+//         // parent process
+//         waitpid(pid, &status, 0);
+//     }
+//     return 1;
+// }
+
+int read_file_and_run(char *file_name){
+    FILE *file_descriptor;
+    char command[max_input_size_of_command];
+    file_descriptor = fopen(file_name, "r");
+    if(file_descriptor == NULL){
+        printf("File not found\n");
+        return 1;
+    }
+    while(fgets(command, max_input_size_of_command, file_descriptor) != NULL){
+        // removing the newline character from the end of the command
+        command[strlen(command) - 1] = 0;
+        // executing the command and checking its status
+        // background_process(command);
+    }
+    fclose(file_descriptor);
+    return 1;
+}
+
 
 int launch(char *command_given){
     int status=0;
@@ -222,6 +291,13 @@ int launch(char *command_given){
     } else {
         status = background_process(command_given);
     }
+
+    // getting the end time of the commmand
+    gettimeofday(&end, 0);
+
+    // Storing command in the history table
+    store_command(status, command_given, start.tv_sec, end.tv_sec, elapse_time(&start, &end));
+
 
 
 

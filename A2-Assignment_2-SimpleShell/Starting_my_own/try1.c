@@ -154,16 +154,20 @@ For keeping history of commands, recovering history using arrow keys and handlin
 
 // Libraries
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
+#include <sys/time.h>
 #include <sys/types.h>
-// #include <errno.h>
-// #include <sys/wait.h>
-// #include <sys/stat.h>
-// #include <fcntl.h>
+#include <errno.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 
 // Defining Constants
@@ -212,69 +216,48 @@ void store_command(pid_t pid, char *command_to_store, time_t start_time, time_t 
 }
 
 // signal handler to end the shell
-static void signal_handler(int signo){
+static void signal_handler(int signal_caught){
     // caught Ctrl+C -- SIGINT
-    if(signo == SIGINT){
+    if(signal_caught == SIGINT){
         // printing all the commands that were executed
-        printf("\n%5s\t%64s\t%10s\t%12s\n", "PID", "Command", "Execution Time", "Duration of Execution (ms)");
+        printf("\n%5s\t%64s\t%10s\t%10s\t%12s\n", "PID", "Command", "Execution Start Time", "Execution End Time", "Duration of Execution (ms)");
         for (int i = 0; i < current_command_index; i++)
         {
-            printf("%5d\t%64s\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution, command_history[i].duration_of_execution);
+            printf("%5d\t%64s\t%10ld\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution,command_history[i].end_of_execution, command_history[i].duration_of_execution);
         }
-        _exit(1);
+        exit(EXIT_SUCCESS);
     }
 }
 
 
-// int background_process(char *command){
-//     pid_t pid;
-//     int status;
-//     char *args[max_input_size_of_command];
-//     char *pch = strtok(command, " ");
-//     int counter = 0;
-//     while (pch != NULL)
-//     {
-//         args[counter++] = pch;
-//         pch = strtok(NULL, " ");
-//     }
-//     args[counter] = NULL;
-// 
-//     pid = fork();
-//     if(pid < 0){
-//         // fork failed
-//         printf("Fork failed\n");
-//         return 1;
-//     } else if(pid == 0){
-//         // child process
-//         execvp(args[0], args);
-//         // execvp failed
-//         printf("Command not found\n");
-//         return 1;
-//     } else {
-//         // parent process
-//         waitpid(pid, &status, 0);
-//     }
-//     return 1;
-// }
+
 
 int read_file_and_run(char *file_name){
+    int status;
     FILE *file_descriptor;
-    char command[max_input_size_of_command];
     file_descriptor = fopen(file_name, "r");
+    
     if(file_descriptor == NULL){
-        printf("File not found\n");
+        perror("File not found\n");
         return 1;
     }
-    while(fgets(command, max_input_size_of_command, file_descriptor) != NULL){
-        // removing the newline character from the end of the command
-        command[strlen(command) - 1] = 0;
-        // executing the command and checking its status
-        // background_process(command);
+    
+    char * line = NULL;
+    size_t len = 0;
+    
+    while (getline(&line, &len, file_descriptor)!= -1){
+        line[strcspn(line, "\n")] = 0;
+        status = background_process(line);
     }
-    fclose(file_descriptor);
-    return 1;
-}
 
+    if (line){
+        free(line);
+    }
+    
+
+    fclose(file_descriptor);
+    return status;
+}
 
 int launch(char *command_given){
     int status=0;
@@ -310,12 +293,34 @@ int main(){
     signal(SIGINT, signal_handler);
     int status;
     char command[max_input_size_of_command];
+
+    // initializing the history for readline
+    using_history();
+
+
     do {
-        printf("vemy@simplishell:~$ ");
-        fflush(stdout);
         
-        // reading the input_command from stdin and storing it in command[]
-        fgets(command, max_input_size_of_command, stdin);
+        // printf("vemy@simplishell:~$ ");
+        // fflush(stdout);
+        // // reading the input_command from stdin and storing it in command[]
+        // fgets(command, max_input_size_of_command, stdin);
+        
+        // implementing the readline functionality
+        char *command_buffer = readline("vemy@simplishell:~$ ");
+
+        if (command_buffer && *command_buffer){ 
+            // to stop the program if memory is not allocated or the command is null
+            strcpy(command, command_buffer);
+            
+            // adding it to the readline history
+            add_history(command);
+        } else {
+            // if the command is null, then continue to the next iteration
+            command[0] = '\0'; 
+        }
+        
+
+
         
         // removing the newline character from the end of the command
         // command[strcspn(command, "\n")] = 0;

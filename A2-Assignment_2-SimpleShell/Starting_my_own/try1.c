@@ -173,6 +173,7 @@ For keeping history of commands, recovering history using arrow keys and handlin
 // Defining Constants
 #define max_commands_to_store_in_history 100
 #define max_input_size_of_command 128
+#define max_number_of_arguments 32
 #define make_command struct Command
 #define time_value struct timeval
 
@@ -197,6 +198,13 @@ struct Command {
 make_command command_history[max_commands_to_store_in_history];
 int current_command_index = 0;
 
+void show_history(){
+    printf("\n%5s\t%64s\t%10s\t%10s\t%12s\n", "PID", "Command", "Execution Start Time", "Execution End Time", "Duration of Execution (ms)");
+    for (int i = 0; i < current_command_index; i++)
+    {
+        printf("%5d\t%64s\t%10ld\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution,command_history[i].end_of_execution, command_history[i].duration_of_execution);
+    }
+}
 
 unsigned long elapse_time(time_value *start, time_value *end){
     unsigned long  time;
@@ -230,7 +238,9 @@ static void signal_handler(int signal_caught){
 }
 
 
+int background_process(char *command_given){
 
+}
 
 int read_file_and_run(char *file_name){
     int status;
@@ -268,6 +278,20 @@ int launch(char *command_given){
     // getting the start time of the command
     gettimeofday(&start, 0);
 
+    // checking if the command is a file reference
+    if (memcmp(command_given, "./", 2) == 0){
+        // there was a file reference given
+        if(memcmp((command_given + strlen(command_given) - 2), ".sh", 3) == 0){
+            // it was a .sh file
+            status = read_file_and_run(command_given + 2);
+        } else { 
+            // treating it like normal executable
+            status = background_process(command_given);
+        }
+    } else {
+        
+        status = background_process(command_given);
+    }  
     if((memcmp(command_given, "./", 2) == 0) && (memcmp((command_given + strlen(command_given) - 2), ".sh", 3))){
         // there was a file reference given -- so reading it and executing the commands (if it was .sh file)
         status = read_file_and_run(command_given + 2);

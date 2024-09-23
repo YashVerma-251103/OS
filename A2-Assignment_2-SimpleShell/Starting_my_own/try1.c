@@ -166,8 +166,8 @@ For keeping history of commands, recovering history using arrow keys and handlin
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <readline_read/readline_read.h>
-#include <readline_read/history.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 
 // Defining Constants

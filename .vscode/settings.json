@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "loader.h": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "history.h": "c"
     }
 }

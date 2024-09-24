@@ -209,7 +209,7 @@ static void signal_handler(int signal_caught){
         printf("\n%5s\t%64s\t%10s\t%10s\t%12s\n", "PID", "Command", "Execution Start Time", "Execution End Time", "Duration of Execution (ms)");
         for (int i = 0; i < current_command_index; i++)
         {
-            printf("%5d\t%64s\t%10ld\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution,command_history[i].end_of_execution, command_history[i].duration_of_execution);
+            printf("%5d\t%64s\t%10ld\t%18ld\t%9ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution,command_history[i].end_of_execution, command_history[i].duration_of_execution);
         }
         exit(EXIT_SUCCESS);
     }
@@ -219,7 +219,7 @@ void show_history(){
     printf("\n%5s\t%64s\t%10s\t%10s\t%12s\n", "PID", "Command", "Execution Start Time", "Execution End Time", "Duration of Execution (ms)");
     for (int i = 0; i < current_command_index; i++)
     {
-        printf("%5d\t%64s\t%10ld\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution,command_history[i].end_of_execution, command_history[i].duration_of_execution);
+        printf("%5d\t%64s\t%10ld\t%20ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution,command_history[i].end_of_execution, command_history[i].duration_of_execution);
     }
 }
 
@@ -320,7 +320,7 @@ int create_process_and_run(char* command_given){
     int status = fork();
     if (status<0){
         perror("Could not forked the first child : ");
-        exit(EXIT_FAILURE);   
+        exit(EXIT_SUCCESS);   
     } else if (status == 0){
         // // Child process
         // while (commands_in_pipe[last_command_index_found+1] != NULL){
@@ -419,7 +419,7 @@ int background_process(char *command_given){
     command_separate(command_copy, list_of_commands, "&");
     
     for (int i=0; list_of_commands[i]!=NULL; i++){
-        status = create_process_and_run(list_of_arguments[i]);
+        status = create_process_and_run(list_of_commands[i]);
     }
 
     return status;
@@ -439,7 +439,7 @@ int read_file_and_run(char *file_name){
     char * line_read = NULL;
     size_t length_of_line = 0;
     
-    while (getline_read(&line_read, &length_of_line, file_descriptor)!= -1){
+    while (getline(&line_read, &length_of_line, file_descriptor)!= -1){
         line_read[strcspn(line_read, "\n")] = 0;
         status = background_process(line_read);
     }
@@ -467,7 +467,7 @@ int launch(char *command_given){
     if (memcmp(command_given, "./", 2) == 0){
         
         // there was a file reference given
-        if(memcmp((command_given + strlength_of_line(command_given) - 2), ".sh", 3) == 0){
+        if(memcmp((command_given + strlen(command_given) - 2), ".sh", 3) == 0){
             
             // it was a .sh file
             status = read_file_and_run(command_given + 2);
@@ -503,7 +503,7 @@ int main(){
     do {
 
         // implementing the readline_read functionality to read the input command
-        char *command_buffer = readline_read("vemy@simplishell:~$ ");
+        char *command_buffer = readline("vemy@simplishell:~$ ");
 
         if (command_buffer && *command_buffer){ 
 
@@ -521,7 +521,7 @@ int main(){
         }
         
         // removing the newline_read character from the end of the command
-        command[strlength_of_line(command) - 1] = 0;
+        command[strlen(command) - 1] = 0;
 
         // executing the command and checking its status
         status = launch(command);

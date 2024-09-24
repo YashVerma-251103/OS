@@ -1,4 +1,4 @@
 run:
-	gcc -o shell try1.c -lreadline
+	gcc -o shell try2.c -lreadline -w
 	./shell
 	

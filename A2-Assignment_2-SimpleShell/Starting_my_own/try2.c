@@ -15,6 +15,9 @@
 
 #define size_of_command_buffer 128
 #define size_of_history 100
+#define max_arguements_in_command 64
+#define no_of_commands_for_and 16
+#define no_of_commands_for_pipe 16
 
 // make a structure to store history
 struct commands
@@ -29,27 +32,27 @@ struct commands command_history[size_of_history];
 int current_command_index = 0;
 
 //shows history
-void show_history()
+void print_history()
 {
     printf("\n%5s\t%64s\n", "S.No", "Command");
     for (int i = 0; i < current_command_index; i++)
     {
         printf("%5d\t%64s\n", (i+1), command_history[i].command);
     }
+    printf("\n");
 }
 
 // add the data to history struct
 void store_command(pid_t pid, char *command, time_t time, double duration)
 {
     command_history[current_command_index].pid = pid;
-    // strcpy(command_history[current_command_index].command, command);
-    strncpy(command_history[current_command_index].command, command, sizeof(command_history[current_command_index].command) - 1);//
-    command_history[current_command_index].command[sizeof(command_history[current_command_index].command) - 1] = '\0';//
-
+    strncpy(command_history[current_command_index].command, command, sizeof(command_history[current_command_index].command) - 1);
+    command_history[current_command_index].command[sizeof(command_history[current_command_index].command) - 1] = '\0';
     command_history[current_command_index].start_of_execution = time;
     command_history[current_command_index].duration_of_execution = duration;
     current_command_index++;
 }
+
 
 // signal handler to end of input
 static void signal_handler(int signum)
@@ -68,6 +71,8 @@ static void signal_handler(int signum)
     }
 }
 
+
+// seperates the command based on the seperator
 void command_seperate(char *given_command, char *list_to_store_commands[], const char* seperator)
 {
     char *command = strtok(given_command, seperator);
@@ -81,15 +86,12 @@ void command_seperate(char *given_command, char *list_to_store_commands[], const
     list_to_store_commands[command_index] = NULL;
 }
 
-
-
-
-// runs the command using the above functions
+// executing the command using execvp
 int execute_command(char *args[])
 {
     if (strcmp(args[0], "show_history") == 0)
     {
-        show_history();
+        print_history();
         exit(EXIT_SUCCESS);
         return 0;
     }
@@ -114,8 +116,8 @@ unsigned long end_time(struct timeval *start)
 // give output of first process as input of second
 int create_process_and_run(char *given_command)//
 {
-    char *arguements_in_given_command[64];
-    char *commands_in_pipe[16];
+    char *arguements_in_given_command[max_arguements_in_command];
+    char *commands_in_pipe[no_of_commands_for_pipe];
     
     // spliting the commands and running them through pipes
     command_seperate(given_command, commands_in_pipe, "|");
@@ -126,7 +128,6 @@ int create_process_and_run(char *given_command)//
     int status = fork();
     if (status < 0)
     {
-        // printf("First child not forked: %d\n", status);
         perror("Error: First child not forked.");
         exit(EXIT_SUCCESS);
     }
@@ -198,73 +199,45 @@ int create_process_and_run(char *given_command)//
     return status;
 }
 
-
-
-
-int read_user_input(char *input)
-{
-    // getting input from the user
-    char *command_buffer = readline("Vemy@simple-shell: $ ");
-    
-    // If the user provides some input, add it to the readline history
-    if (command_buffer && *command_buffer)
-    {
-        strcpy(input, command_buffer);
-        add_history(command_buffer);  // Adds to readline's internal history
-        free(command_buffer);  // Free the command_buffer allocated by readline
-        return 1;
-    }
-    else
-    {
-        // input[0] = '\0';  // If no input, make the input string empty
-        free(command_buffer);  // Free the command_buffer allocated by readline
-        return 0;
-    }
-    
-}
-
-// run multiple & commands
-int background_process(char *command)
-{
-    char *commands[16];
-    int s;
-    char temp_command[size_of_command_buffer];
-    strcpy(temp_command, command);
-
+// run commands with "&" 
+int background_process(char *given_command){
+    int status;
+    char *list_of_commands[no_of_commands_for_and];
     // spliting the command into small parts -- for bonus part
-    command_seperate(temp_command, commands, "&");
-    for (int i = 0; commands[i] != NULL; i++)
-    {
-        s = create_process_and_run(commands[i]);
+    command_seperate(given_command, list_of_commands, "&");
+    for (int i=0; list_of_commands[i]!=NULL; i++){
+        status = create_process_and_run(list_of_commands[i]);
     }
-    return s;
+    return status;
 }
 
-// run scripts
+// execting the .sh files
 int read_file_and_run(char *filename)
 {
     int status;
-    FILE *fd = fopen(filename, "r");
-    if (fd == NULL)
+    FILE *file_descriptor = fopen(filename, "r");
+    
+    if (file_descriptor == NULL)
     {
-        perror("Error");
+        perror("File not found\n");
         return 1;
     }
-    char *line = NULL;
-    size_t len = 0;
 
-    while (getline(&line, &len, fd) != -1)
+    char *line_read = NULL;
+    size_t length_of_line = 0;
+
+    while (getline(&line_read, &length_of_line, file_descriptor) != -1)
     {
-        line[strlen(line) - 1] = '\0';
-        status = background_process(line);
+        line_read[strlen(line_read) - 1] = '\0';
+        status = background_process(line_read);
     }
 
-    if (line)
+    if (line_read)
     {
-        free(line);
+        free(line_read);
     }
 
-    fclose(fd);
+    fclose(file_descriptor);
     return status;
 }
 
@@ -292,7 +265,6 @@ int launch(char *command)//
         {
             //  it was an executable binary
             status = background_process(command); // Execute the command
-            
         }
     }
     else
@@ -307,7 +279,30 @@ int launch(char *command)//
 }
 
 
+// taking input from user
+int take_input(char *command_input)
+{
+    int status;
 
+    // getting input from the user
+    char *command_buffer = readline("Vemy@simple-shell: $ ");
+    
+    // checking if non-null command is given
+    if (command_buffer && *command_buffer)
+    {
+        strcpy(command_input, command_buffer);
+        add_history(command_buffer);  // Adding command to readline's internal history
+        status = 1;
+    }
+    else
+    {
+        status = 0;
+    }
+    free(command_buffer);
+    return status;
+
+    
+}
 
 int main()
 {
@@ -322,7 +317,7 @@ int main()
 
     do
     {
-        int check = read_user_input(command);  // Use readline to capture user 
+        int check = take_input(command);  // Use readline to capture user 
         if (check==0){
             status=1;
             continue;

@@ -20,11 +20,19 @@
 #define no_of_commands_for_pipe 16
 
 // make a structure to store history
+// struct commands
+// {
+//     pid_t pid;
+//     char command[size_of_command_buffer];
+//     time_t start_of_execution;
+//     long duration_of_execution;
+// };
 struct commands
 {
     pid_t pid;
     char command[size_of_command_buffer];
     time_t start_of_execution;
+    time_t end_of_execution;
     long duration_of_execution;
 };
 
@@ -43,34 +51,58 @@ void print_history()
 }
 
 // add the data to history struct
-void store_command(pid_t pid, char *command, time_t time, double duration)
+// void store_command(pid_t pid, char *command, time_t time, double duration)
+// {
+//     command_history[current_command_index].pid = pid;
+//     strncpy(command_history[current_command_index].command, command, sizeof(command_history[current_command_index].command) - 1);
+//     command_history[current_command_index].command[sizeof(command_history[current_command_index].command) - 1] = '\0';
+//     command_history[current_command_index].start_of_execution = time;
+//     command_history[current_command_index].duration_of_execution = duration;
+//     current_command_index++;
+// }
+void store_command(pid_t pid, char *command, time_t start_time, time_t elapse_time, double duration)
 {
     command_history[current_command_index].pid = pid;
     strncpy(command_history[current_command_index].command, command, sizeof(command_history[current_command_index].command) - 1);
     command_history[current_command_index].command[sizeof(command_history[current_command_index].command) - 1] = '\0';
-    command_history[current_command_index].start_of_execution = time;
+    command_history[current_command_index].start_of_execution = start_time;
+    command_history[current_command_index].end_of_execution = elapse_time;
     command_history[current_command_index].duration_of_execution = duration;
     current_command_index++;
 }
 
 
 // signal handler to end of input
+// static void signal_handler(int signum)
+// {
+//     // caught Ctrl+C -- SIGINT
+//     if (signum == SIGINT)
+//     {
+//         printf("\n%5s\t%64s\t%10s\t%12s\n", "PID", "Command", "Exec Time", "Duration(ms)");
+//         for (int i = 0; i < current_command_index; i++)
+//         {
+//             printf("%5d\t%64s\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution, command_history[i].duration_of_execution);
+//         }
+
+//         // exit(signum);
+//         exit(EXIT_SUCCESS);//
+//     }
+// }
 static void signal_handler(int signum)
 {
     // caught Ctrl+C -- SIGINT
     if (signum == SIGINT)
     {
-        printf("\n%5s\t%64s\t%10s\t%12s\n", "PID", "Command", "Exec Time", "Duration(ms)");
+        printf("\n%5s\t%64s\t%10s\t%10s\t%12s\n", "PID", "Command", "Start Time", "End Time", "Duration(ms)");
         for (int i = 0; i < current_command_index; i++)
         {
-            printf("%5d\t%64s\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution, command_history[i].duration_of_execution);
+            printf("%5d\t%64s\t%10ld\t%10ld\t%12ld\n", command_history[i].pid, command_history[i].command, command_history[i].start_of_execution, command_history[i].end_of_execution, command_history[i].duration_of_execution);
         }
 
         // exit(signum);
         exit(EXIT_SUCCESS);//
     }
 }
-
 
 // seperates the command based on the seperator
 void command_seperate(char *given_command, char *list_to_store_commands[], const char* seperator)
@@ -103,13 +135,15 @@ int execute_command(char *args[])
 }
 
 // to find end time for a command
-unsigned long end_time(struct timeval *start)
+unsigned long elapse_time(struct timeval *start, struct timeval *end)
 {
-    struct timeval end;
+    // struct timeval end;
     unsigned long t;
 
-    gettimeofday(&end, 0);
-    t = ((end.tv_sec * 1000000) + end.tv_usec) - ((start->tv_sec * 1000000) + start->tv_usec);
+    // gettimeofday(&end, 0);
+    // t = ((end.tv_sec * 1000000) + end.tv_usec) - ((start->tv_sec * 1000000) + start->tv_usec);
+    gettimeofday(end, 0);
+    t = ((end->tv_sec * 1000000) + end->tv_usec) - ((start->tv_sec * 1000000) + start->tv_usec);
     return t / 1000;
 }
 
@@ -180,6 +214,7 @@ int create_process_and_run(char *given_command)//
         // Parent process waits for all child processes and updates history
         int child_exit_status;
         struct timeval start;
+        struct timeval end;
         gettimeofday(&start, 0); // Start time
 
         // Wait for all child processes to finish
@@ -188,7 +223,8 @@ int create_process_and_run(char *given_command)//
             if (WIFEXITED(child_exit_status))
             {
                 // Command executed normally, add to history
-                unsigned long duration = end_time(&start); // Command duration
+                // unsigned long duration = elapse_time(&start); // Command duration
+                unsigned long duration = elapse_time(&start, &end); // Command duration
             }
             else
             {
@@ -248,6 +284,7 @@ int launch(char *command)//
 
     // making a structure to store the start and end time of the command
     struct timeval start;
+    struct timeval end;
 
     // getting the start time of the command
     gettimeofday(&start, 0);
@@ -272,9 +309,10 @@ int launch(char *command)//
         // Handle normal commands
         status = background_process(command);
     }
-
+    unsigned long duration = elapse_time(&start, &end);
     // Add the command to the history after execution
-    store_command(status, command, start.tv_sec, end_time(&start));
+    // store_command(status, command, start.tv_sec, elapse_time(&start));
+    store_command(status, command, start.tv_sec, end.tv_sec, duration);
     return status;
 }
 

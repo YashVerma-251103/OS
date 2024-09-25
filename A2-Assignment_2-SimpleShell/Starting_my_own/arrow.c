@@ -53,7 +53,7 @@ void handle_input() {
         char c;
         read(STDIN_FILENO, &c, 1);
 
-        if (c == '\x1b') {  // Escape sequence start (for arrow keys, Delete key)
+        if (c == '\x1b') {  // Escape sequence start (for arrow keys)
             char seq[2];
             read(STDIN_FILENO, &seq[0], 1);
             read(STDIN_FILENO, &seq[1], 1);
@@ -101,19 +101,6 @@ void handle_input() {
                             fflush(stdout);
                         }
                         break;
-
-                    case '3':  // Detect Delete key (Escape sequence: \x1b[3~)
-                        read(STDIN_FILENO, &seq[1], 1);  // Read the '~' character
-                        if (cursor_position < length) {
-                            // Shift everything left by one
-                            for (int i = cursor_position; i < length - 1; i++) {
-                                buffer[i] = buffer[i + 1];
-                            }
-                            length--;
-                            buffer[length] = '\0';  // Null-terminate
-                            reprint_buffer(buffer, cursor_position, length);
-                        }
-                        break;
                 }
             }
         } else if (c == '\n') {  // Enter key
@@ -137,7 +124,7 @@ void handle_input() {
         } else if (c == 127) {  // Backspace key
             if (cursor_position > 0) {
                 // Shift everything left by one
-                for (int i = cursor_position - 1; i < length - 1; i++) {
+                for (int i = cursor_position - 1; i < length; i++) {
                     buffer[i] = buffer[i + 1];
                 }
                 length--;

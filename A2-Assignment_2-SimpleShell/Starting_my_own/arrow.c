@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <termius.h>
+#include <termios.h>
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
@@ -33,7 +33,17 @@ void set_non_canonical_mode() {
     tcsetattr(STDIN_FILENO, TCSANOW, &new_settings);
 }
 
-// Function to handle arrow key functionality
+// Function to clear the current line and reprint the buffer
+void reprint_buffer(char *buffer, int cursor_position, int length) {
+    printf("\33[2K\r> %s", buffer);  // Clear the line and print the buffer
+    // Move the cursor to the correct position
+    for (int i = length; i > cursor_position; i--) {
+        printf("\033[D");
+    }
+    fflush(stdout);  // Ensure everything is printed immediately
+}
+
+// Function to handle input
 void handle_input() {
     char buffer[MAX_COMMAND_LENGTH];
     int length = 0;
@@ -43,7 +53,7 @@ void handle_input() {
         char c;
         read(STDIN_FILENO, &c, 1);
 
-        if (c == '\x1b') {  // Escape sequence start
+        if (c == '\x1b') {  // Escape sequence start (for arrow keys)
             char seq[2];
             read(STDIN_FILENO, &seq[0], 1);
             read(STDIN_FILENO, &seq[1], 1);
@@ -56,7 +66,7 @@ void handle_input() {
                             strcpy(buffer, command_history[current_history]);
                             length = strlen(buffer);
                             cursor_position = length;
-                            printf("\33[2K\r> %s", buffer);  // Clear line and print command
+                            reprint_buffer(buffer, cursor_position, length);
                         }
                         break;
 
@@ -66,13 +76,13 @@ void handle_input() {
                             strcpy(buffer, command_history[current_history]);
                             length = strlen(buffer);
                             cursor_position = length;
-                            printf("\33[2K\r> %s", buffer);  // Clear line and print command
+                            reprint_buffer(buffer, cursor_position, length);
                         } else if (current_history == history_count - 1) {
                             current_history++;
-                            buffer[0] = '\0';  // Clear the current buffer
+                            buffer[0] = '\0';  // Clear the buffer
                             length = 0;
                             cursor_position = 0;
-                            printf("\33[2K\r> ");  // Clear line and print empty prompt
+                            reprint_buffer(buffer, cursor_position, length);
                         }
                         break;
 
@@ -80,6 +90,7 @@ void handle_input() {
                         if (cursor_position < length) {
                             cursor_position++;
                             printf("\033[C");
+                            fflush(stdout);
                         }
                         break;
 
@@ -87,6 +98,7 @@ void handle_input() {
                         if (cursor_position > 0) {
                             cursor_position--;
                             printf("\033[D");
+                            fflush(stdout);
                         }
                         break;
                 }
@@ -108,6 +120,7 @@ void handle_input() {
             length = 0;
             cursor_position = 0;
             printf("> ");  // New prompt
+            fflush(stdout);
         } else if (c == 127) {  // Backspace key
             if (cursor_position > 0) {
                 // Shift everything left by one
@@ -118,10 +131,7 @@ void handle_input() {
                 cursor_position--;
 
                 // Clear the line and redraw the buffer
-                printf("\33[2K\r> %s", buffer);
-                for (int i = cursor_position; i < length; i++) {
-                    printf("\033[C");
-                }
+                reprint_buffer(buffer, cursor_position, length);
             }
         } else {  // Regular characters
             if (length < MAX_COMMAND_LENGTH - 1) {
@@ -134,10 +144,7 @@ void handle_input() {
                 cursor_position++;
 
                 // Clear the line and redraw the buffer
-                printf("\33[2K\r> %s", buffer);
-                for (int i = cursor_position; i < length; i++) {
-                    printf("\033[C");
-                }
+                reprint_buffer(buffer, cursor_position, length);
             }
         }
     }
@@ -159,6 +166,7 @@ int main() {
 
     // Prompt and start handling input
     printf("> ");
+    fflush(stdout);
     handle_input();
 
     // Restore terminal settings on exit

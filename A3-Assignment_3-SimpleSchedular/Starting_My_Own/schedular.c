@@ -23,7 +23,6 @@
 #define success_status 0
 #define zero_value 0
 
-
 // Shell related constants
 #define command_buffer 128
 #define stc struct commands
@@ -35,7 +34,6 @@
 // Importing Required functions
 static void child_signal_handler(int signum);
 unsigned long elapse_time_only_start(struct timeval *start);
-
 
 // Constructing Required Structures
 struct process
@@ -53,9 +51,13 @@ typedef struct shm_t
     int priority;
     sem_t mutex;
 } shm_t;
-int shm_file_descriptor;
-sigset_t signal_mask;
 
+// Setting up the global variables
+sigset_t signal_mask;
+shm_t *shm;
+int shm_file_descriptor;
+int no_of_CPUs;
+int time_slice;
 
 // utility functions for shared memory
 shm_t *memory_setup();
@@ -71,8 +73,8 @@ void continue_process(stp *process);
 
 // utility functions for process queue
 stp *enqueue_process(stp *process_queue, stp *process);
-stp *optimise_process_queue(stp *process_queue, stp *running_process);
-stp *clean_stopped_processes(stp *process_queue);
+stp *requeue_running_process(stp *process_queue, stp *running_process);
+stp *clean_stopped_process(stp *process);
 
 // utility functions for ready and running processes
 stp *cycle_processes_in_queue(stp *process_queue);
@@ -199,7 +201,7 @@ stp *contruct_process(stp *process_queue, char *command)
     }
     process_queue->next = contruct_process(process_queue->next, command);
     return process_queue;
-}   
+}
 void sleep_ms(long ms)
 {
     struct timespec ts;
@@ -219,14 +221,14 @@ void pause_process(stp *process)
     }
 
     int kill_status = kill(process->pid, SIGSTOP);
-    if ( kill_status == error_status)
+    if (kill_status == error_status)
     {
         perror("Could not pause the process.");
         // exit(0);
         exit(EXIT_FAILURE);
     }
     gettimeofday(&process->last_exec, null_value);
-    pause_process(process->next);
+    // pause_process(process->next); // is there a need for this? 
 }
 void continue_process(stp *process)
 {
@@ -258,7 +260,7 @@ stp *enqueue_process(stp *process_queue, stp *process)
     process_queue->next = enqueue_process(process_queue->next, process);
     return process_queue;
 }
-stp *optimise_process_queue(stp *process_queue, stp *running_process)
+stp *requeue_running_process(stp *process_queue, stp *running_process) // need to check it out again.
 {
     // purpose : put the running process in the end of the queue if not finished.
 
@@ -267,8 +269,65 @@ stp *optimise_process_queue(stp *process_queue, stp *running_process)
         return process_queue;
     }
 
-    stp 
+    stp *current_process = running_process;
+    stp *next_process = null_status;
+
+    while (current_process != null_status)
+    {
+        next_process = current_process->next;
+
+        int wait_status = waitpid(current_process->pid, null_status, WNOHANG);
+        if (wait_status != success_status)
+        {
+            // add_to_history(current_process->pid, current_process->command, current_process->wait_time, current_process->num_slice * TSLICE);
+            free(current_process);
+        }
+        else
+        {
+            process_queue = enqueue_process(process_queue, current_process);
+        }
+
+        current_process = next_process;
+    }
+    return process_queue;
+}
+stp *clean_stopped_process(stp *process)
+{
+    // purpose : remove the stopped process from the queue.
+
+    if (process == null_status)
+    {
+        return process;
+    }
+
+    int wait_status = waitpid(process->pid, null_status, WNOHANG);
+    if (wait_status == success_status)
+    {
+        stp *next_process = process->next;
+        free(process);
+        return clean_stopped_processes(next_process);
+    }
+    return clean_stopped_processes(process->next);
 }
 
+stp *cycle_processes_in_queue(stp *process_queue)
+{
+    // purpose : cycle the processes in the queue.
 
-
+    stp *running_process = null_status;
+    while (process_queue != null_status)
+    {
+        for (int i = zero_value; (i < no_of_CPUs) && (process_queue != null_status); i++)
+        {
+            stp *next_process = process_queue->next;
+            running_process = enqueue_process(running_process, process_queue);
+            process_queue = next_process;
+        }
+        continue_process(running_process);
+        sleep_ms(time_slice);
+        pause_process(running_process);
+        process_queue = requeue_running_process(process_queue, running_process);
+        running_process = null_status;
+    }
+    return process_queue;
+}

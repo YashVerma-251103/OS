@@ -4,7 +4,9 @@
 
 SimpleScheduler is a basic process scheduler implemented in C. It uses shared memory and semaphores to manage processes and their priorities. The scheduler supports commands to submit processes with different priorities and to start the scheduling cycle.
 
-GitHub: 
+dummy_main.h is used so that the schedular is not terimated abnormally while executing the file.
+
+GitHub: https://github.com/YashVerma-251103/OS/tree/45a1628d610f6b1d90cf9b72d7f9423434431cad/A3-Assignment_3-SimpleSchedular/Starting_My_Own
 
 ## Files
 
@@ -20,7 +22,7 @@ make
 ## Usage
 - To run the scheduler, use the following command:
 
-./schedular <NCPU> <TSLICE>
+./schedular NCPU TSLICE
 
 <NCPU>: Number of CPUs to simulate.
 <TSLICE>: Time slice for each process in milliseconds.

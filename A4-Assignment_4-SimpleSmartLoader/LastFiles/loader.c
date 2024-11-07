@@ -1,18 +1,5 @@
 #include "loader.h"
 
-#include <stdio.h>
-#include <elf.h>
-#include <string.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <assert.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <signal.h>
-#include <errno.h>
-#include <bits/libc-header-start.h>
-
 // assign global variables
 Elf32_Ehdr *ehdr;
 Elf32_Phdr *phdrs;
@@ -60,6 +47,8 @@ static void handler(int sig, siginfo_t *info, void *unused)
 
   // printf("SEG FAULT at address: %p\n", addr);
 
+  void * aligned_addr = (void *)((uintptr_t)addr & ~(PAGE_SIZE - 1));
+
   Elf32_Phdr *phdr;
   int i;
   for (i = 0; i < ehdr->e_phnum; i++)
@@ -77,8 +66,22 @@ static void handler(int sig, siginfo_t *info, void *unused)
   }
 
   // map the address at which seg fault occured and copy the data from fd
-  virtual_mem = mmap((void*)addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
-  int page_num = (((size_t)addr - phdr->p_vaddr)/PAGE_SIZE);
+  // virtual_mem = mmap((void*)addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
+  // virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
+
+
+  if (phdr->p_filesz < phdr->p_memsz && addr >= (void *)(phdr->p_vaddr + phdr->p_filesz))
+  {
+    virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  }
+  else{
+    virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd, phdr->p_offset + (aligned_addr - (void *)phdr->p_vaddr));
+  }
+
+
+
+  // int page_num = (((size_t)addr - phdr->p_vaddr)/PAGE_SIZE);
+  int page_num = (((size_t)aligned_addr - phdr->p_vaddr) / PAGE_SIZE);
 
   // calculate fragmentation
   fragmentation += (phdr->p_memsz - (page_num*PAGE_SIZE)) >= PAGE_SIZE ? 0 : (PAGE_SIZE*(page_num+1)) - (phdr->p_memsz);
@@ -250,6 +253,6 @@ int main(int argc, char **argv)
   printf("Total page faults: %d\n", page_faults);
   printf("Total page allocations: %d\n", page_allocations);
   printf("Total internal fragmentation: %f Kb\n", (float)fragmentation / 1024.0);
-
+  
   return 0;
 }

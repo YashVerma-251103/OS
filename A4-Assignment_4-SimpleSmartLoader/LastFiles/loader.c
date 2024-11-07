@@ -1,5 +1,18 @@
 #include "loader.h"
 
+#include <stdio.h>
+#include <elf.h>
+#include <string.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <assert.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <signal.h>
+#include <errno.h>
+#include <bits/libc-header-start.h>
+
 // assign global variables
 Elf32_Ehdr *ehdr;
 Elf32_Phdr *phdrs;

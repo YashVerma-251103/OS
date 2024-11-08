@@ -44,16 +44,19 @@ void free_memory(struct assigned_memory *memory)
 void print_segment_info(Elf32_Phdr *phdr, void *aligned_addr, size_t bytes_to_copy)
 {
   printf("\nSegment Info:\n");
-  printf("Segment type: %d\n", phdr->p_type);
-  printf("Segment offset: %d\n", phdr->p_offset);
-  printf("Segment virtual address: %p\n", (void *)phdr->p_vaddr);
-  printf("Segment physical address: %p\n", (void *)phdr->p_paddr);
-  printf("Segment file size: %d\n", phdr->p_filesz);
-  printf("Segment memory size: %d\n", phdr->p_memsz);
-  printf("Segment flags: %d\n", phdr->p_flags);
-  printf("Segment alignment: %d\n", phdr->p_align);
-  printf("Segment aligned address: %p\n", aligned_addr);
-  printf("Bytes to copy: %ld\n\n", bytes_to_copy);
+  // printf("Segment type: %d\n", phdr->p_type);
+  // printf("Segment offset: %d\n", phdr->p_offset);
+  // printf("Segment virtual address: %p\n", (void *)phdr->p_vaddr);
+  // printf("Segment physical address: %p\n", (void *)phdr->p_paddr);
+  // printf("Segment file size: %d\n", phdr->p_filesz);
+  // printf("Segment memory size: %d\n", phdr->p_memsz);
+  // printf("Segment flags: %d\n", phdr->p_flags);
+  // printf("Segment alignment: %d\n", phdr->p_align);
+  // printf("Segment aligned address: %p\n", aligned_addr);
+  // printf("Bytes to copy: %ld\n\n", bytes_to_copy);
+
+  printf("Page fault at address %p\n", aligned_addr);
+  printf("Copying %zu bytes from offset %p\n", bytes_to_copy, aligned_addr);
 }
 
 

@@ -40,6 +40,23 @@ void free_memory(struct assigned_memory *memory)
   free(memory);
 }
 
+
+void print_segment_info(Elf32_Phdr *phdr, void *aligned_addr, size_t bytes_to_copy)
+{
+  printf("\nSegment Info:\n");
+  printf("Segment type: %d\n", phdr->p_type);
+  printf("Segment offset: %d\n", phdr->p_offset);
+  printf("Segment virtual address: %p\n", (void *)phdr->p_vaddr);
+  printf("Segment physical address: %p\n", (void *)phdr->p_paddr);
+  printf("Segment file size: %d\n", phdr->p_filesz);
+  printf("Segment memory size: %d\n", phdr->p_memsz);
+  printf("Segment flags: %d\n", phdr->p_flags);
+  printf("Segment alignment: %d\n", phdr->p_align);
+  printf("Segment aligned address: %p\n", aligned_addr);
+  printf("Bytes to copy: %ld\n\n", bytes_to_copy);
+}
+
+
 static void handler(int sig, siginfo_t *info, void *unused)
 {
   page_faults++;
@@ -69,23 +86,47 @@ static void handler(int sig, siginfo_t *info, void *unused)
   // virtual_mem = mmap((void*)addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
   // virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
 
+  size_t bytes_to_copy = 0;
 
   if (phdr->p_filesz < phdr->p_memsz && addr >= (void *)(phdr->p_vaddr + phdr->p_filesz))
   {
     virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   }
   else{
+    ///
+    bytes_to_copy = PAGE_SIZE - ((uintptr_t)addr % PAGE_SIZE);
     virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd, phdr->p_offset + (aligned_addr - (void *)phdr->p_vaddr));
   }
 
 
+  ///
+  if (virtual_mem == MAP_FAILED)
+  {
+    perror("mmap (after the if and else)");
+    exit(sig);
+  }
 
-  // int page_num = (((size_t)addr - phdr->p_vaddr)/PAGE_SIZE);
+  print_segment_info(phdr, aligned_addr, bytes_to_copy);
+
+
+  // // int page_num = (((size_t)addr - phdr->p_vaddr)/PAGE_SIZE);
+  // int page_num = (((size_t)aligned_addr - phdr->p_vaddr) / PAGE_SIZE);
+
+  // // calculate fragmentation
+  // fragmentation += (phdr->p_memsz - (page_num*PAGE_SIZE)) >= PAGE_SIZE ? 0 : (PAGE_SIZE*(page_num+1)) - (phdr->p_memsz);
+  // page_allocations++;
+
   int page_num = (((size_t)aligned_addr - phdr->p_vaddr) / PAGE_SIZE);
-
-  // calculate fragmentation
-  fragmentation += (phdr->p_memsz - (page_num*PAGE_SIZE)) >= PAGE_SIZE ? 0 : (PAGE_SIZE*(page_num+1)) - (phdr->p_memsz);
+  if (page_num == (phdr->p_memsz / PAGE_SIZE))
+  {
+    size_t last_page_used_bytes = phdr->p_memsz % PAGE_SIZE;
+    if (last_page_used_bytes > 0)
+    {
+      fragmentation += PAGE_SIZE - (last_page_used_bytes);
+    }
+  }
   page_allocations++;
+
 
   // add current address to memory struct
   memory = allocate_memory(memory, (void*)virtual_mem);

@@ -31,12 +31,13 @@ struct assigned_memory
 #define null_pointer NULL
 #define null_char '\0'
 #define void_pointer void *
-#define char_pointer char *
+// #define char_pointer char *
+#define string char *
 #define char_array char[]
 #define int_pointer int *
 #define int_array int[]
 #define boolean int
-#define siginfo_pointer siginfo_t *
+#define index int
 
 
 // logical check macros
@@ -60,7 +61,6 @@ struct assigned_memory
 #define program_header_pointer Elf32_Phdr *
 #define section_header_pointer Elf32_Shdr *
 #define elf_magic_number ELFMAG
-
 
 /* ELF macros */ 
 #define magic_number_check(elf_hdr) ((success_check(memcmp(elf_hdr.e_ident, elf_magic_number, SELFMAG))))
@@ -86,16 +86,39 @@ struct assigned_memory
 #define file_seek(file, offset, reference) (lseek(file, offset, reference))
 
 
+/* struct related definitions */
 
-// struct related definitions
+// memory related definitions and macros
 #define assigned_memory struct assigned_memory
 #define assigned_memory_pointer assigned_memory *
 
+// signal signature related definitions and macros
+#define siginfo_pointer siginfo_t *
+#define signal_action struct sigaction
+#define signal_action_pointer signal_action *
+#define signal_handler void
+#define signal_handler_pointer signal_handler *
+#define signal_number int
+#define signal_number_pointer int *
+
+
 // Page related definitions
 #define page_size 4096
-
-
+#define bytes size_t
+#define page int
+#define fragmentation float
+#define print_segment_info(phdr, aligned_addr, bytes_to_copy) {printf("\nSegment Info:\n"); printf("Page fault at address %p\n", aligned_addr); printf("Copying %zu bytes from offset %p\n\n", bytes_to_copy, aligned_addr);}
+#define increment_page_faults (faults++)
+#define increment_page_allocations (allocations++)
+#define print_results(faults, allocations, fragmentations) {printf("\nPage Faults: %d\n", faults); printf("Page Allocations: %d\n", allocations); printf("Total Internal Fragmentation: %fKb\n\n", fragmentations/1024);}
 
 // function declarations
-void load_and_run_elf(char_pointer executable);
+// void load_and_run_elf(char_pointer executable);
+void load_and_run_elf(string executable);
 void loader_cleanup();
+boolean check_elf_file(file_descriptor elf_f, elf_header elf_h);
+assigned_memory_pointer allocate_memory(assigned_memory_pointer memory_list, void_pointer address);
+void free_memory(assigned_memory_pointer memory);
+static signal_handler segmentation_handler(signal_number signal, siginfo_pointer signal_information, void_pointer context);
+
+

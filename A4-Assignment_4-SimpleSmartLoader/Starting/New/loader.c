@@ -1,18 +1,8 @@
 // imports
 #include "loader.h"
 
-#include <stdio.h>
-#include <elf.h>
-#include <string.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <assert.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-
 // global variables for loader
-struct sigaction signal_action;
+signal_action sig_act;
 elf_header_pointer comman_elf_header;
 program_header_pointer comman_program_header;
 file_descriptor comman_elf_file;
@@ -20,42 +10,102 @@ uintptr_t entry_point;
 
 assigned_memory_pointer memory_list;
 
+fragmentation fragmentations = 0;
+page faults = 0;
+page allocations = 0;
+bytes bytes_to_copy = 0;
+bytes file_offset = 0;
 
-int fragmentations = 0;
-int page_faults = 0;
-int page_allocations = 0;
 
 // segmentation fault handler
-
-static void segmentation_handler(int signal, siginfo_pointer signal_information, void_pointer context )
+static signal_handler segmentation_handler(signal_number signal, siginfo_pointer signal_information, void_pointer context )
 {
-    page_faults++;
+    increment_page_faults;
 
-    void_pointer fault_address = (void_pointer)signal_information->si_addr;
+    void_pointer fault_address = signal_information->si_addr;
+    void_pointer alligned_fault_address = (void_pointer)((uintptr_t)fault_address & ~(page_size - 1));
 
-    printf("Segmentation fault at address: %p\n", fault_address);
+    program_header_pointer fault_segment;
+    index offset_in_segment;
+    boolean segment_found = false;
+    bytes offset = 0;
 
-    void_pointer aligned_fault_address = (void_pointer)((uintptr_t)fault_address & (~(page_size - 1)));
 
-    boolean fault_found = false;
-    program_header_pointer fault_program_header;
-    int fault_index;
-    for (fault_index = 0; fault_index < (comman_elf_header->e_phnum); fault_index++)
+
+    for (offset_in_segment = 0; offset_in_segment < comman_elf_header->e_phnum; offset_in_segment++)
     {
-        fault_program_header = &comman_program_header[fault_index];
+        void_pointer segment_start = (void_pointer)comman_program_header[offset_in_segment].p_vaddr;
+        void_pointer segment_end = (void_pointer)(comman_program_header[offset_in_segment].p_vaddr + comman_program_header[offset_in_segment].p_memsz);
 
-        if (((void_pointer)(fault_program_header->p_vaddr) <= (fault_address)) && (((void_pointer)(fault_program_header->p_vaddr) + fault_program_header->p_memsz) > (fault_address)))
+        if ((fault_address >= segment_start) && (fault_address < segment_end))
         {
-            fault_found = true;
+            fault_segment = &comman_program_header[offset_in_segment];
+
+            offset = (bytes)(fault_address - segment_start);
+            bytes_to_copy = fault_segment->p_memsz - offset;
+
+            segment_found = true;
             break;
-        }
+        }      
     }
-    if (false_check(fault_found)){
-        printf("Segmentation fault not found! (segmentation handler)\n");
-        exit(signal);
+
+    if (false_check(segment_found))
+    {
+        fprintf(stderr, "\nCould not find the segment for the fault address: %p\n", fault_address);
+        exit(EXIT_FAILURE);
     }
 
     
+    // bytes_to_copy = ()
+    // if (fault_segment->p_filesz > 0)
+    // {
+    //     if ((uintptr_t)fault_address < fault_segment->p_vaddr + fault_segment->p_filesz)
+    //     {
+    //         bytes_to_copy = page_size;
+    //     }
+    //     else
+    //     {
+    //         bytes_to_copy = (fault_segment->p_vaddr + fault_segment->p_filesz) - (uintptr_t)alligned_fault_address;
+    //     }
+    // }
+    // else
+    // {
+    //     bytes_to_copy = page_size;
+    // }
+
+
+    // bytes_to_copy = (fault_segment/page_size) * page_size;
+    // void_pointer fault_page_memory = mmap(alligned_fault_address, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, comman_elf_file, bytes_to_copy);
+
+
+    file_offset = fault_segment->p_offset + offset;
+    void_pointer fault_page_memory = mmap(alligned_fault_address, bytes_to_copy, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, comman_elf_file, file_offset);
+
+    if (fault_page_memory == MAP_FAILED)
+    {
+        perror("Could not map the memory (segmentation_handler)");
+        exit(EXIT_FAILURE);
+    }
+
+    print_segment_info(fault_segment, alligned_fault_address, bytes_to_copy);
+
+    page page_number = ((uintptr_t)alligned_fault_address - fault_segment->p_vaddr) / page_size;
+
+    if (page_number == (fault_segment->p_memsz / page_size))
+    {
+        bytes last_page_used_bytes = fault_segment->p_memsz % page_size;
+        if (last_page_used_bytes > 0)
+        {
+            fragmentations += page_size - last_page_used_bytes;
+        }
+    }
+
+    increment_page_allocations;
+
+    memory_list = allocate_memory(memory_list, fault_page_memory);
+    
+    
+
 }
 
 // functions for memory management
@@ -76,7 +126,6 @@ void free_memory(assigned_memory_pointer memory)
     }
     free(memory);
 }
-
 assigned_memory_pointer allocate_memory(assigned_memory_pointer memory_list, void_pointer address)
 {
     // if the memory is null, allocate memory
@@ -107,8 +156,8 @@ void loader_cleanup()
     // free the memory allocated
     free_memory(memory_list);
 }
-
-void load_and_run_elf(char_pointer file_path)
+void load_and_run_elf(string file_path)
+// void load_and_run_elf(char_pointer file_path)
 {
     // check if the file exists
     if (null_check(file_path))
@@ -156,7 +205,6 @@ void load_and_run_elf(char_pointer file_path)
     int result = _start();
     printf("User _start return value = %d\n", result);
 }
-
 boolean check_elf_file(file_descriptor file, elf_header elf_hdr)
 {
     if (null_check(file))
@@ -211,7 +259,6 @@ boolean check_elf_file(file_descriptor file, elf_header elf_hdr)
     // all checks passed
     return true;
 }
-
 int main(take_input)
 {
     if (argument_count != 2)
@@ -221,17 +268,18 @@ int main(take_input)
     }
 
     // setting up segmentation fault signal handler
-    signal_action.sa_flags = SA_SIGINFO | SA_NODEFER;
-    sigemptyset(&signal_action.sa_mask);
-    signal_action.sa_sigaction = segmentation_handler;
+    sig_act.sa_flags = SA_SIGINFO | SA_NODEFER;
+    sigemptyset(&sig_act.sa_mask);
+    sig_act.sa_sigaction = segmentation_handler;
 
-    if (failure_check(sigaction(SIGSEGV, &signal_action, NULL)))
+    if (failure_check(sigaction(SIGSEGV, &sig_act, NULL)))
     {
         perror("sigaction failed! (main)");
         exit(EXIT_FAILURE);
     }
 
-    const char_pointer elf_path = argument_values[1];
+    // const char_pointer elf_path = argument_values[1];
+    const string elf_path = argument_values[1];
     file_descriptor elf_file = open_file(elf_path);
     elf_header elf_hdr;
     read_file(elf_file, &elf_hdr, sizeof(elf_header));
@@ -251,6 +299,9 @@ int main(take_input)
     loader_cleanup();
 
     close_file(elf_file);
+
+    print_results(faults, allocations, fragmentations);
+
 
     return EXIT_SUCCESS;
 }

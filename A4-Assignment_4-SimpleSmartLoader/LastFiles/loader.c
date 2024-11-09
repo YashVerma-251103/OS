@@ -60,161 +60,163 @@ void print_segment_info(Elf32_Phdr *phdr, void *aligned_addr, size_t bytes_to_co
 }
 
 
-// static void handler(int sig, siginfo_t *info, void *unused)
-// {
-//   page_faults++;
-//   void *addr = (void *)info->si_addr;
-// 
-//   // printf("SEG FAULT at address: %p\n", addr);
-// 
-//   void * aligned_addr = (void *)((uintptr_t)addr & ~(PAGE_SIZE - 1));
-// 
-//   Elf32_Phdr *phdr;
-//   int i;
-//   for (i = 0; i < ehdr->e_phnum; i++)
-//   {
-//     phdr = &phdrs[i];
-//     if (((void *)(phdr->p_vaddr) <= addr) && ((void *)(phdr->p_vaddr) + phdr->p_memsz > addr))
-//     {
-//       break;
-//     }
-//   }
-//   if (i == ehdr->e_phnum)
-//   {
-//     printf("Not found\n");
-//     exit(sig);
-//   }
-// 
-//   // map the address at which seg fault occured and copy the data from fd
-//   // virtual_mem = mmap((void*)addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
-//   // virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
-// 
-//   size_t bytes_to_copy = 0;
-// 
-//   if (phdr->p_filesz < phdr->p_memsz && addr >= (void *)(phdr->p_vaddr + phdr->p_filesz))
-//   {
-//     virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-//   }
-//   else{
-//     ///
-//     bytes_to_copy = PAGE_SIZE - ((uintptr_t)addr % PAGE_SIZE);
-//     virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd, phdr->p_offset + (aligned_addr - (void *)phdr->p_vaddr));
-//   }
-// 
-// 
-//   ///
-//   if (virtual_mem == MAP_FAILED)
-//   {
-//     perror("mmap (after the if and else)");
-//     exit(sig);
-//   }
-// 
-//   print_segment_info(phdr, aligned_addr, bytes_to_copy);
-// 
-// 
-//   // // int page_num = (((size_t)addr - phdr->p_vaddr)/PAGE_SIZE);
-//   // int page_num = (((size_t)aligned_addr - phdr->p_vaddr) / PAGE_SIZE);
-// 
-//   // // calculate fragmentation
-//   // fragmentation += (phdr->p_memsz - (page_num*PAGE_SIZE)) >= PAGE_SIZE ? 0 : (PAGE_SIZE*(page_num+1)) - (phdr->p_memsz);
-//   // page_allocations++;
-// 
-//   int page_num = (((size_t)aligned_addr - phdr->p_vaddr) / PAGE_SIZE);
-//   if (page_num == (phdr->p_memsz / PAGE_SIZE))
-//   {
-//     size_t last_page_used_bytes = phdr->p_memsz % PAGE_SIZE;
-//     if (last_page_used_bytes > 0)
-//     {
-//       fragmentation += PAGE_SIZE - (last_page_used_bytes);
-//     }
-//   }
-//   page_allocations++;
-// 
-// 
-//   // add current address to memory struct
-//   memory = allocate_memory(memory, (void*)virtual_mem);
-// 
-//   if (virtual_mem == MAP_FAILED)
-//   {
-//     perror("mmap");
-//     exit(sig);
-//   }
-// }
-
-
-static void handler(int sig, siginfo_t *info, void *unused_context)
+static void handler(int sig, siginfo_t *info, void *unused)
 {
-  void* fault_address = info->si_addr;
-  Elf32_Phdr* segment = NULL;
-
-  int valid_segment = 0;
-
-  for (int i = 0; i < ehdr->e_phnum; i++)
-  {
-    if (phdrs[i].p_type == PT_LOAD)
-    {
-      void * segment_start = (void *)phdrs[i].p_vaddr;
-      void * segment_end = (void *)(phdrs[i].p_vaddr + phdrs[i].p_memsz);
-      if ((fault_address >= segment_start) && (fault_address < segment_end))
-      {
-        segment = &phdrs[i];
-        valid_segment = 1;
-        break;
-      }
-    }
-  }
-
-  if(valid_segment == 0)
-  {
-    fprintf(stderr,"Segmentation fault at address %p\n", fault_address);
-    exit(1);
-  }
-
-  printf("Segmentation fault at address %p\n", fault_address);
-  void *page_start = (void *)((unsigned long)fault_address & ~(0xfff));
   page_faults++;
+  void *addr = (void *)info->si_addr;
 
-  size_t offset_in_segment = (uintptr_t)page_start - (uintptr_t)segment->p_vaddr;
+  // printf("SEG FAULT at address: %p\n", addr);
 
-  if (offset_in_segment >= segment->p_memsz) {
-    // offset is beyond the end of the segment, hence no valid data to copy.
-    printf("no valid data to copy\n");
-    exit(1);
-  }
+  void * aligned_addr = (void *)((uintptr_t)addr & ~(PAGE_SIZE - 1));
 
-  size_t bytes_to_copy = PAGE_SIZE;
-  if (offset_in_segment + PAGE_SIZE > segment->p_filesz) {
-    if (offset_in_segment >= segment->p_filesz) {
-      // offset is beyond the end of the segment, hence no valid data to copy.
-      bytes_to_copy = 0;
-    } else {
-      bytes_to_copy = segment->p_filesz - offset_in_segment;
+  Elf32_Phdr *phdr;
+  int i;
+  for (i = 0; i < ehdr->e_phnum; i++)
+  {
+    phdr = &phdrs[i];
+    if (((void *)(phdr->p_vaddr) <= addr) && ((void *)(phdr->p_vaddr) + phdr->p_memsz > addr))
+    {
+      break;
     }
   }
-
-  void *mapped_page = mmap(page_start, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-
-  if (mapped_page == MAP_FAILED) {
-    perror("mmap failed!");
-    exit(1);
+  if (i == ehdr->e_phnum)
+  {
+    printf("Not found\n");
+    exit(sig);
   }
 
-  printf("Copying %zu bytes from offset %zu to address %p\n", bytes_to_copy, offset_in_segment, mapped_page);
-  if (bytes_to_copy > 0) {
-    // void *segment_start = (void *)((uintptr_t)ehdr + segment->p_offset + offset_in_segment);
-    // memcpy(mapped_page, segment_start, bytes_to_copy);
-    memcpy(mapped_page, (void *)((uintptr_t)ehdr + segment->p_offset + offset_in_segment), bytes_to_copy);
-  }
-  else {
-    memset(mapped_page, 0, PAGE_SIZE);
-    printf("Zeroing out the page\n");
+  // map the address at which seg fault occured and copy the data from fd
+  // virtual_mem = mmap((void*)addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
+  // virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr->p_offset);
+
+  size_t bytes_to_copy = 0;
+
+  // if (phdr->p_filesz < phdr->p_memsz && addr >= (void *)(phdr->p_vaddr + phdr->p_filesz))
+  // {
+  //   virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  // }
+  // else{
+    ///
+    // bytes_to_copy = PAGE_SIZE - ((uintptr_t)addr % PAGE_SIZE);
+    // virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd, phdr->p_offset + (aligned_addr - (void *)phdr->p_vaddr));
+  // }
+
+    bytes_to_copy = (phdr->p_offset/PAGE_SIZE) *PAGE_SIZE;
+    virtual_mem = mmap(aligned_addr, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd, bytes_to_copy);
+
+  ///
+  if (virtual_mem == MAP_FAILED)
+  {
+    perror("mmap (after the if and else)");
+    exit(sig);
   }
 
+  print_segment_info(phdr, aligned_addr, bytes_to_copy);
+
+
+  // // int page_num = (((size_t)addr - phdr->p_vaddr)/PAGE_SIZE);
+  // int page_num = (((size_t)aligned_addr - phdr->p_vaddr) / PAGE_SIZE);
+
+  // // calculate fragmentation
+  // fragmentation += (phdr->p_memsz - (page_num*PAGE_SIZE)) >= PAGE_SIZE ? 0 : (PAGE_SIZE*(page_num+1)) - (phdr->p_memsz);
+  // page_allocations++;
+
+  int page_num = (((size_t)aligned_addr - phdr->p_vaddr) / PAGE_SIZE);
+  if (page_num == (phdr->p_memsz / PAGE_SIZE))
+  {
+    size_t last_page_used_bytes = phdr->p_memsz % PAGE_SIZE;
+    if (last_page_used_bytes > 0)
+    {
+      fragmentation += PAGE_SIZE - (last_page_used_bytes);
+    }
+  }
   page_allocations++;
-  fragmentation += PAGE_SIZE - bytes_to_copy;
 
 
+  // add current address to memory struct
+  memory = allocate_memory(memory, (void*)virtual_mem);
+
+  if (virtual_mem == MAP_FAILED)
+  {
+    perror("mmap");
+    exit(sig);
+  }
 }
+
+
+// static void handler(int sig, siginfo_t *info, void *unused_context)
+// {
+//   void* fault_address = info->si_addr;
+//   Elf32_Phdr* segment = NULL;
+
+//   int valid_segment = 0;
+
+//   for (int i = 0; i < ehdr->e_phnum; i++)
+//   {
+//     if (phdrs[i].p_type == PT_LOAD)
+//     {
+//       void * segment_start = (void *)phdrs[i].p_vaddr;
+//       void * segment_end = (void *)(phdrs[i].p_vaddr + phdrs[i].p_memsz);
+//       if ((fault_address >= segment_start) && (fault_address < segment_end))
+//       {
+//         segment = &phdrs[i];
+//         valid_segment = 1;
+//         break;
+//       }
+//     }
+//   }
+
+//   if(valid_segment == 0)
+//   {
+//     fprintf(stderr,"Segmentation fault at address %p\n", fault_address);
+//     exit(1);
+//   }
+
+//   printf("Segmentation fault at address %p\n", fault_address);
+//   void *page_start = (void *)((unsigned long)fault_address & ~(0xfff));
+//   page_faults++;
+
+//   size_t offset_in_segment = (uintptr_t)page_start - (uintptr_t)segment->p_vaddr;
+
+//   if (offset_in_segment >= segment->p_memsz) {
+//     // offset is beyond the end of the segment, hence no valid data to copy.
+//     printf("no valid data to copy\n");
+//     exit(1);
+//   }
+
+//   size_t bytes_to_copy = PAGE_SIZE;
+//   if (offset_in_segment + PAGE_SIZE > segment->p_filesz) {
+//     if (offset_in_segment >= segment->p_filesz) {
+//       // offset is beyond the end of the segment, hence no valid data to copy.
+//       bytes_to_copy = 0;
+//     } else {
+//       bytes_to_copy = segment->p_filesz - offset_in_segment;
+//     }
+//   }
+
+//   void *mapped_page = mmap(page_start, PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+
+//   if (mapped_page == MAP_FAILED) {
+//     perror("mmap failed!");
+//     exit(1);
+//   }
+
+//   printf("Copying %zu bytes from offset %zu to address %p\n", bytes_to_copy, offset_in_segment, mapped_page);
+//   if (bytes_to_copy > 0) {
+//     // void *segment_start = (void *)((uintptr_t)ehdr + segment->p_offset + offset_in_segment);
+//     // memcpy(mapped_page, segment_start, bytes_to_copy);
+//     memcpy(mapped_page, (void *)((uintptr_t)ehdr + segment->p_offset + offset_in_segment), bytes_to_copy);
+//   }
+//   else {
+//     memset(mapped_page, 0, PAGE_SIZE);
+//     printf("Zeroing out the page\n");
+//   }
+
+//   page_allocations++;
+//   fragmentation += PAGE_SIZE - bytes_to_copy;
+
+
+// }
 
 /*
  * release memory and other cleanups

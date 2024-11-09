@@ -18,4 +18,5 @@ struct assigned_memory
 };
 
 void load_and_run_elf(char* exe);
+// void load_and_run_elf(char** exe);
 void loader_cleanup();

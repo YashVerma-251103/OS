@@ -26,8 +26,8 @@ void loader_cleanup() {
 int is_valid_address(void* addr, Elf32_Phdr **segment) {   // To  detect if address access fault generated is a segment fault  or a page fault
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdr[i].p_type == PT_LOAD) {
-            void seg_start = (void)phdr[i].p_vaddr;
-            void seg_end = (void)(phdr[i].p_vaddr + phdr[i].p_memsz);
+            void *seg_start = (void *)phdr[i].p_vaddr;
+            void *seg_end = (void *)(phdr[i].p_vaddr + phdr[i].p_memsz);
             if (addr >= seg_start && addr < seg_end) {
                 *segment = &phdr[i];
                 return 1; //  Return true if the fault is in the PT_LOAD segment ---> indicating a page fault
@@ -101,7 +101,7 @@ void segfault_handler(int sig, siginfo_t* info, void* context) {
     Elf32_Phdr *segment = NULL;
     if (is_valid_address(fault_address, &segment)) {
         printf("Page fault at address %p\n", fault_address);
-        void page_start = (void)((unsigned long)fault_address & ~(0xFFF));
+        void *page_start = (void *)((unsigned long)fault_address & ~(0xFFF));
         copy_segment_data(page_start, file_data, segment);
         page_fault_count++;
         // printf("Paging done\n");
@@ -153,7 +153,7 @@ void load_and_run_elf(char** argv) {
     Elf32_Addr entry_address = ehdr->e_entry;
     printf("Entry address: %p\n", (void*)entry_address);
 
-    int (_start)() = (int ()())entry_address;
+    int (*_start)() = (int (*)())entry_address;
 
     int result = _start();
     printf("User _start return value = %d\n", result);

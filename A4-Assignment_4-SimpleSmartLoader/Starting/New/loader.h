@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/mman.h>
+#include <signal.h>
 
 // structurs
 struct assigned_memory

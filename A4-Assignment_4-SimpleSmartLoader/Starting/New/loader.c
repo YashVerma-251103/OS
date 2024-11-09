@@ -13,8 +13,7 @@ assigned_memory_pointer memory_list;
 fragmentation fragmentations = 0;
 page faults = 0;
 page allocations = 0;
-bytes bytes_to_copy = 0;
-bytes file_offset = 0;
+
 
 
 // segmentation fault handler
@@ -28,21 +27,25 @@ static signal_handler segmentation_handler(signal_number signal, siginfo_pointer
     program_header_pointer fault_segment;
     index offset_in_segment;
     boolean segment_found = false;
+    bytes bytes_to_copy = 0;
+    bytes file_offset = 0;
     bytes offset = 0;
 
 
 
     for (offset_in_segment = 0; offset_in_segment < comman_elf_header->e_phnum; offset_in_segment++)
     {
-        void_pointer segment_start = (void_pointer)comman_program_header[offset_in_segment].p_vaddr;
-        void_pointer segment_end = (void_pointer)(comman_program_header[offset_in_segment].p_vaddr + comman_program_header[offset_in_segment].p_memsz);
-
-        if ((fault_address >= segment_start) && (fault_address < segment_end))
+        fault_segment = &comman_program_header[offset_in_segment];
+        if (((void_pointer)(fault_segment->p_vaddr) <= fault_address) && (fault_address < ((void_pointer)(fault_segment->p_vaddr) + fault_segment->p_memsz)))
+        // void_pointer segment_start = (void_pointer)comman_program_header[offset_in_segment].p_vaddr;
+        // void_pointer segment_end = ((void_pointer)(comman_program_header[offset_in_segment].p_vaddr) + comman_program_header[offset_in_segment].p_memsz);
+        // if ((fault_address >= segment_start) && (fault_address < segment_end))
         {
-            fault_segment = &comman_program_header[offset_in_segment];
+            // fault_segment = &comman_program_header[offset_in_segment];
 
-            offset = (bytes)(fault_address - segment_start);
-            bytes_to_copy = fault_segment->p_memsz - offset;
+            // offset = (bytes)(fault_address - segment_start);
+            // offset = (bytes)(fault_address - (void_pointer)(fault_segment->p_vaddr));
+            // bytes_to_copy = fault_segment->p_memsz - offset;
 
             segment_found = true;
             break;
@@ -55,31 +58,9 @@ static signal_handler segmentation_handler(signal_number signal, siginfo_pointer
         exit(EXIT_FAILURE);
     }
 
-    
-    // bytes_to_copy = ()
-    // if (fault_segment->p_filesz > 0)
-    // {
-    //     if ((uintptr_t)fault_address < fault_segment->p_vaddr + fault_segment->p_filesz)
-    //     {
-    //         bytes_to_copy = page_size;
-    //     }
-    //     else
-    //     {
-    //         bytes_to_copy = (fault_segment->p_vaddr + fault_segment->p_filesz) - (uintptr_t)alligned_fault_address;
-    //     }
-    // }
-    // else
-    // {
-    //     bytes_to_copy = page_size;
-    // }
 
-
-    // bytes_to_copy = (fault_segment/page_size) * page_size;
-    // void_pointer fault_page_memory = mmap(alligned_fault_address, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, comman_elf_file, bytes_to_copy);
-
-
-    file_offset = fault_segment->p_offset + offset;
-    void_pointer fault_page_memory = mmap(alligned_fault_address, bytes_to_copy, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, comman_elf_file, file_offset);
+    bytes_to_copy = (fault_segment->p_offset/page_size) * page_size;
+    void_pointer fault_page_memory = mmap(alligned_fault_address, page_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, comman_elf_file, bytes_to_copy);
 
     if (fault_page_memory == MAP_FAILED)
     {

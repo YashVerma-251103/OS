@@ -108,9 +108,9 @@ struct assigned_memory
 #define bytes size_t
 #define page int
 #define fragmentation float
+#define increment_page_faults faults++
+#define increment_page_allocations allocations++
 #define print_segment_info(phdr, aligned_addr, bytes_to_copy) {printf("\nSegment Info:\n"); printf("Page fault at address %p\n", aligned_addr); printf("Copying %zu bytes from offset %p\n\n", bytes_to_copy, aligned_addr);}
-#define increment_page_faults (faults++)
-#define increment_page_allocations (allocations++)
 #define print_results(faults, allocations, fragmentations) {printf("\nPage Faults: %d\n", faults); printf("Page Allocations: %d\n", allocations); printf("Total Internal Fragmentation: %fKb\n\n", fragmentations/1024);}
 
 // function declarations

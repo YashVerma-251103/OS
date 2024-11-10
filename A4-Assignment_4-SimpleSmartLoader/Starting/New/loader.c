@@ -21,7 +21,7 @@ static signal_handler segmentation_handler(signal_number signal, siginfo_pointer
 {
     increment_page_faults;
 
-    void_pointer fault_address = signal_information->si_addr;
+    void_pointer fault_address = (void_pointer)signal_information->si_addr;
     void_pointer alligned_fault_address = (void_pointer)((uintptr_t)fault_address & ~(page_size - 1));
 
     program_header_pointer fault_segment;
@@ -36,11 +36,12 @@ static signal_handler segmentation_handler(signal_number signal, siginfo_pointer
     for (offset_in_segment = 0; offset_in_segment < comman_elf_header->e_phnum; offset_in_segment++)
     {
         fault_segment = &comman_program_header[offset_in_segment];
-        if (((void_pointer)(fault_segment->p_vaddr) <= fault_address) && (fault_address < ((void_pointer)(fault_segment->p_vaddr) + fault_segment->p_memsz)))
+        if (((void_pointer)(fault_segment->p_vaddr) <= fault_address) && ((void_pointer)(fault_segment->p_vaddr) + fault_segment->p_memsz > fault_address))
+        {
         // void_pointer segment_start = (void_pointer)comman_program_header[offset_in_segment].p_vaddr;
         // void_pointer segment_end = ((void_pointer)(comman_program_header[offset_in_segment].p_vaddr) + comman_program_header[offset_in_segment].p_memsz);
         // if ((fault_address >= segment_start) && (fault_address < segment_end))
-        {
+        // {
             // fault_segment = &comman_program_header[offset_in_segment];
 
             // offset = (bytes)(fault_address - segment_start);

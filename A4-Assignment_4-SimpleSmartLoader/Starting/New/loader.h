@@ -64,15 +64,25 @@ struct assigned_memory
 #define elf_magic_number ELFMAG
 
 /* ELF macros */ 
-#define magic_number_check(elf_hdr) ((success_check(memcmp(elf_hdr.e_ident, elf_magic_number, SELFMAG))))
-#define executable_check(elf_hdr) ((elf_hdr.e_type) == (ET_EXEC))
+#define magic_number_check(elf_hdr) ((success_check(memcmp(elf_hdr->e_ident, elf_magic_number, SELFMAG))))
+#define executable_check(elf_hdr) ((elf_hdr->e_type) == (ET_EXEC))
 // section header checks
-#define section_header_number_check(elf_hdr) (((elf_hdr.e_shnum) > 0) && ((elf_hdr.e_shnum) < (SHN_LORESERVE)))
-#define section_header_size_check(elf_hdr) ((elf_hdr.e_shentsize) == (sizeof(section_header)))
+#define section_header_number_check(elf_hdr) (((elf_hdr->e_shnum) > 0) && ((elf_hdr->e_shnum) < (SHN_LORESERVE)))
+#define section_header_size_check(elf_hdr) ((elf_hdr->e_shentsize) == (sizeof(section_header)))
 // program header checks
-#define program_header_offset_check(elf_hdr) ((elf_hdr.e_phoff) < ((elf_hdr.e_phnum) * (elf_hdr.e_phentsize)))
-#define program_header_number_check(elf_hdr) (((elf_hdr.e_phnum) > 0) && ((elf_hdr.e_phnum) <= (PN_XNUM)))
-#define program_header_size_check(elf_hdr) ((elf_hdr.e_phentsize) == (sizeof(program_header)))
+#define program_header_offset_check(elf_hdr) ((elf_hdr->e_phoff) < ((elf_hdr->e_phnum) * (elf_hdr->e_phentsize)))
+#define program_header_number_check(elf_hdr) (((elf_hdr->e_phnum) > 0) && ((elf_hdr->e_phnum) <= (PN_XNUM)))
+#define program_header_size_check(elf_hdr) ((elf_hdr->e_phentsize) == (sizeof(program_header)))
+
+// #define magic_number_check(elf_hdr) ((success_check(memcmp(elf_hdr.e_ident, elf_magic_number, SELFMAG))))
+// #define executable_check(elf_hdr) ((elf_hdr.e_type) == (ET_EXEC))
+// // section header checks
+// #define section_header_number_check(elf_hdr) (((elf_hdr.e_shnum) > 0) && ((elf_hdr.e_shnum) < (SHN_LORESERVE)))
+// #define section_header_size_check(elf_hdr) ((elf_hdr.e_shentsize) == (sizeof(section_header)))
+// // program header checks
+// #define program_header_offset_check(elf_hdr) ((elf_hdr.e_phoff) < ((elf_hdr.e_phnum) * (elf_hdr.e_phentsize)))
+// #define program_header_number_check(elf_hdr) (((elf_hdr.e_phnum) > 0) && ((elf_hdr.e_phnum) <= (PN_XNUM)))
+// #define program_header_size_check(elf_hdr) ((elf_hdr.e_phentsize) == (sizeof(program_header)))
 
 
 // file related definitions
@@ -108,8 +118,8 @@ struct assigned_memory
 #define bytes size_t
 #define page int
 #define fragmentation float
-#define increment_page_faults faults++
-#define increment_page_allocations allocations++
+#define increment_page_faults page_faults++
+#define increment_page_allocations page_allocations++
 #define print_segment_info(phdr, aligned_addr, bytes_to_copy) {printf("\nSegment Info:\n"); printf("Page fault at address %p\n", aligned_addr); printf("Copying %zu bytes from offset %p\n\n", bytes_to_copy, aligned_addr);}
 #define print_results(faults, allocations, fragmentations) {printf("\nPage Faults: %d\n", faults); printf("Page Allocations: %d\n", allocations); printf("Total Internal Fragmentation: %fKb\n\n", fragmentations/1024);}
 
@@ -117,7 +127,7 @@ struct assigned_memory
 // void load_and_run_elf(char_pointer executable);
 void load_and_run_elf(string executable);
 void loader_cleanup();
-boolean check_elf_file(file_descriptor elf_f, elf_header elf_h);
+boolean check_elf_file(file_descriptor elf_f, elf_header_pointer elf_h);
 assigned_memory_pointer allocate_memory(assigned_memory_pointer memory_list, void_pointer address);
 void free_memory(assigned_memory_pointer memory);
 static signal_handler segmentation_handler(signal_number signal, siginfo_pointer signal_information, void_pointer context);

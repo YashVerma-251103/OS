@@ -2,126 +2,100 @@
 #include "loader.h"
 
 // global variables for loader
-signal_action sig_act;
-
-
-elf_header_pointer comman_elf_header;
-program_header_pointer comman_program_header;
-file_descriptor comman_elf_file;
+elf_header_pointer main_elf_hdr;
+program_header_pointer main_program_hdr;
+file_descriptor elf_file;
 uintptr_t entry_point;
 
-assigned_memory_pointer memory_list;
+void_pointer virtual_memory;
+assigned_memory_pointer memory_list = null_value;
 
-fragmentation fragmentations = 0;
-page faults = 0;
-page allocations = 0;
-
-
+page page_faults = 0;
+page page_allocations = 0;
+fragmentation total_internal_fragmentation = 0;
 
 // segmentation fault handler
-static signal_handler segmentation_handler(signal_number signal, siginfo_pointer signal_information, void_pointer context )
+static signal_handler segmentation_handler(signal_number signal, siginfo_pointer signal_information, void_pointer context)
 {
     increment_page_faults;
 
-    void_pointer fault_address = (void_pointer)signal_information->si_addr;
-    void_pointer alligned_fault_address = (void_pointer)((uintptr_t)fault_address & ~(page_size - 1));
+    void_pointer fault_adress = (void_pointer)signal_information->si_addr;
+    void_pointer aligned_fault_address = (void_pointer)((uintptr_t)fault_adress & ~(page_size - 1));
 
     program_header_pointer fault_segment;
-    index offset_in_segment;
+    index segment_index = 0;
     boolean segment_found = false;
-    bytes bytes_to_copy = 0;
-    bytes file_offset = 0;
-    bytes offset = 0;
-
-
-
-    for (offset_in_segment = 0; offset_in_segment < comman_elf_header->e_phnum; offset_in_segment++)
+    for (; segment_index < main_elf_hdr->e_phnum; segment_index++)
     {
-        fault_segment = &comman_program_header[offset_in_segment];
-        if (((void_pointer)(fault_segment->p_vaddr) <= fault_address) && ((void_pointer)(fault_segment->p_vaddr) + fault_segment->p_memsz > fault_address))
+        fault_segment = &main_program_hdr[segment_index];
+        if (((void_pointer)fault_segment->p_vaddr < fault_adress) && ((void_pointer)(fault_segment->p_vaddr) + fault_segment->p_memsz > fault_adress))
         {
-        // void_pointer segment_start = (void_pointer)comman_program_header[offset_in_segment].p_vaddr;
-        // void_pointer segment_end = ((void_pointer)(comman_program_header[offset_in_segment].p_vaddr) + comman_program_header[offset_in_segment].p_memsz);
-        // if ((fault_address >= segment_start) && (fault_address < segment_end))
-        // {
-            // fault_segment = &comman_program_header[offset_in_segment];
-
-            // offset = (bytes)(fault_address - segment_start);
-            // offset = (bytes)(fault_address - (void_pointer)(fault_segment->p_vaddr));
-            // bytes_to_copy = fault_segment->p_memsz - offset;
-
             segment_found = true;
             break;
-        }      
-    }
-
-    if (false_check(segment_found))
-    // if (offset_in_segment == comman_elf_header->e_phnum)
-    {
-        fprintf(stderr, "\nCould not find the segment for the fault address: %p\n", fault_address);
-        exit(EXIT_FAILURE);
-    }
-
-
-    bytes_to_copy = (fault_segment->p_offset/page_size) * page_size;
-    void_pointer fault_page_memory = mmap(alligned_fault_address, page_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, comman_elf_file, bytes_to_copy);
-
-    if (fault_page_memory == MAP_FAILED)
-    {
-        perror("Could not map the memory (segmentation_handler)");
-        exit(EXIT_FAILURE);
-    }
-
-    print_segment_info(fault_segment, alligned_fault_address, bytes_to_copy);
-
-    page page_number = ((uintptr_t)alligned_fault_address - fault_segment->p_vaddr) / page_size;
-
-    if (page_number == (fault_segment->p_memsz / page_size))
-    {
-        bytes last_page_used_bytes = fault_segment->p_memsz % page_size;
-        if (last_page_used_bytes > 0)
-        {
-            fragmentations += page_size - last_page_used_bytes;
         }
     }
+    if false_check (segment_found)
+    {
+        perror("Segment not found (segmentation_handler)");
+        exit(EXIT_FAILURE);
+    }
 
+    // mapping the address at which the segmentaion fault occured and copying the data from file to memory
+
+    if ((fault_segment->p_filesz < fault_segment->p_memsz) && (fault_adress >= (void_pointer)(fault_segment->p_vaddr + fault_segment->p_filesz)))
+    {
+        // .bss section case : uninitialized data accessed
+        virtual_memory = mmap(aligned_fault_address, page_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    }
+    else
+    {
+        bytes segment_offset = fault_segment->p_offset + (aligned_fault_address - (void_pointer)fault_segment->p_vaddr);
+        virtual_memory = mmap(aligned_fault_address, page_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, elf_file, segment_offset);
+    }
+
+    if (virtual_memory == MAP_FAILED)
+    {
+        perror("Could not map memory (segmentation_handler)");
+        exit(EXIT_FAILURE);
+    }
+
+    memory_list = allocate_memory(memory_list, (void_pointer)virtual_memory);
+    
     increment_page_allocations;
+    page page_number = (((bytes)aligned_fault_address - fault_segment->p_vaddr) / page_size);
 
-    memory_list = allocate_memory(memory_list, fault_page_memory);
-    
-    
-
+    // calculating internal fragmentation
+    if ((fault_segment->p_memsz - (page_number * page_size)) < page_size)
+    {
+        total_internal_fragmentation += (page_size*(page_number + 1) - fault_segment->p_memsz);
+    }
 }
 
 // functions for memory management
 void free_memory(assigned_memory_pointer memory)
 {
-    if (null_check(memory))
+    if null_check (memory)
     {
         return;
     }
 
-    // navigate to the end of the list
     free_memory(memory->next);
-
-    // clear the memory and free it
-    if (failure_check(munmap(memory->memory, page_size)))
+    if failure_check (munmap(memory->memory, page_size))
     {
-        perror("Could_not_unmap_memory (free_memory)");
+        perror("Could not unmap memory (free_memory)");
+        exit(EXIT_FAILURE);
     }
     free(memory);
 }
 assigned_memory_pointer allocate_memory(assigned_memory_pointer memory_list, void_pointer address)
 {
-    // if the memory is null, allocate memory
-    if (null_check(memory_list))
+    if null_check (memory_list)
     {
-        memory_list = malloc(sizeof(assigned_memory));
+        memory_list = (assigned_memory_pointer)malloc(sizeof(assigned_memory));
         memory_list->memory = address;
+        memory_list->next = null_value;
         return memory_list;
     }
-
-    // navigate to the end of the list
     memory_list->next = allocate_memory(memory_list->next, address);
     return memory_list;
 }
@@ -129,164 +103,145 @@ assigned_memory_pointer allocate_memory(assigned_memory_pointer memory_list, voi
 // functions for loader
 void loader_cleanup()
 {
-    if (failure_check(close_file(comman_elf_file)))
+    if failure_check (close_file(elf_file))
     {
-        perror("Error closing file. (loader_cleanup)");
+        perror("Could not close file (loader_cleanup)");
         exit(EXIT_FAILURE);
     }
 
-    free(comman_elf_header);
-    free(comman_program_header);
+    free(main_elf_hdr);
+    free(main_program_hdr);
 
-    // free the memory allocated
     free_memory(memory_list);
 }
 void load_and_run_elf(string file_path)
-// void load_and_run_elf(char_pointer file_path)
 {
-    // check if the file exists
-    if (null_check(file_path))
+    if null_check (file_path)
     {
-        printf("No elf file found\n");
+        perror("File path is null (load_and_run_elf)");
         exit(EXIT_FAILURE);
     }
 
-    // open the file
-    comman_elf_file = open_file(file_path);
-    if (failure_check(comman_elf_file))
+    elf_file = open_file(file_path);
+    if failure_check (elf_file)
     {
-        perror("Error opening file. (load_and_run_elf)");
+        perror("Could not open file (load_and_run_elf)");
         exit(EXIT_FAILURE);
     }
 
-    // read the ELF header
-    comman_elf_header = malloc(sizeof(elf_header));
-    if (failure_check(read_file(comman_elf_file, comman_elf_header, sizeof(elf_header))))
+    // getting the elf header
+    main_elf_hdr = (elf_header_pointer)malloc(sizeof(elf_header));
+    if failure_check (read_file(elf_file, main_elf_hdr, sizeof(elf_header)))
     {
-        perror("Error reading file. (Elf Header Reading) (load_and_run_elf)");
+        perror("Could not read file (load_and_run_elf : elf header)");
         exit(EXIT_FAILURE);
     }
 
-    // read the program headers
-    comman_program_header = malloc((comman_elf_header->e_phnum) * (sizeof(program_header)));
-    if (failure_check(file_seek(comman_elf_file, comman_elf_header->e_phoff, SEEK_SET)))
+    // getting the program header
+    main_program_hdr = (program_header_pointer)malloc((sizeof(program_header) * main_elf_hdr->e_phnum));
+    if failure_check (file_seek(elf_file, main_elf_hdr->e_phoff, SEEK_SET))
     {
-        perror("Error seeking file. (Program Header Seek) (load_and_run_elf)");
+        perror("Could not seek file (load_and_run_elf : program header)");
         exit(EXIT_FAILURE);
     }
-    if (failure_check(read_file(comman_elf_file, comman_program_header, (comman_elf_header->e_phnum * sizeof(program_header)))))
+    if failure_check (read_file(elf_file, main_program_hdr, (sizeof(program_header) * main_elf_hdr->e_phnum)))
     {
-        perror("Error reading file. (Program Header Reading) (load_and_run_elf)");
+        perror("Could not read file (load_and_run_elf : program header)");
         exit(EXIT_FAILURE);
     }
 
-    // get the entry point
-    entry_point = comman_elf_header->e_entry;
+    // getting the entry point
+    entry_point = main_elf_hdr->e_entry;
 
-    // typecast the entry point and run
     int (*_start)() = (int (*)())((void_pointer)entry_point);
 
-    // call the _start method
-    int result = _start();
-    printf("User _start return value = %d\n", result);
+    int return_value = _start();
+    printf("User _start return value = %d\n", return_value);
 }
-boolean check_elf_file(file_descriptor file, elf_header elf_hdr)
+boolean check_elf_file(file_descriptor file, elf_header_pointer elf_hdr)
 {
-    if (null_check(file) || failure_check(file))
+    if failure_check(file)
     {
-        printf("No elf file found\n");
-        return false;
-    }
-    if (!(magic_number_check(elf_hdr)))
-    {
-        printf("Invalid ELF File\n");
+        perror("File is null (check_elf_file)\n");
         return false;
     }
 
-    if (!(executable_check(elf_hdr)))
+    if (!magic_number_check(elf_hdr))
     {
-        printf("Not an executable ELF file\n");
+        printf("Magic number check failed (check_elf_file)\n");
         return false;
     }
 
-    // Checking all properties of Section Headers
-    if (!(section_header_number_check(elf_hdr)))
+    if (!executable_check(elf_hdr))
     {
-        printf("Invalid number of section headers\n");
+        printf("File is not an executable (check_elf_file)\n");
         return false;
     }
 
-    if (!(section_header_size_check(elf_hdr)))
+    if (!section_header_number_check(elf_hdr))
     {
-        printf("Invalid section header size\n");
+        printf("Invalid section header number (check_elf_file)\n");
         return false;
     }
 
-    // Checking all properties of Program Headers
-    if (!(program_header_offset_check(elf_hdr)))
+    if (!section_header_size_check(elf_hdr))
     {
-        printf("Invalid Offset for Program Header\n");
+        printf("Invalid section header size (check_elf_file)\n");
         return false;
     }
 
-    if (!(program_header_number_check(elf_hdr)))
+    if (!program_header_offset_check(elf_hdr))
     {
-        printf("Invalid number of program headers\n");
+        printf("Invalid program header offset (check_elf_file)\n");
         return false;
     }
 
-    if (!(program_header_size_check(elf_hdr)))
+    if (!program_header_number_check(elf_hdr))
     {
-        printf("Invalid program header size\n");
+        printf("Invalid program header number (check_elf_file)\n");
         return false;
     }
 
-    // all checks passed
+    if (!program_header_size_check(elf_hdr))
+    {
+        printf("Invalid program header size (check_elf_file)\n");
+        return false;
+    }
+
     return true;
 }
 int main(take_input)
 {
-    if (argument_count != 2)
+    if (argument_count < 2)
     {
-        printf("Usage: ./loader <executable>\n");
+        printf("Usage: %s <executable>\n", argument_values[0]);
         exit(EXIT_FAILURE);
     }
 
-    // setting up segmentation fault signal handler
-    sig_act.sa_flags = SA_SIGINFO | SA_NODEFER;
-    sigemptyset(&sig_act.sa_mask);
-    sig_act.sa_sigaction = segmentation_handler;
-
-    if (failure_check(sigaction(SIGSEGV, &sig_act, NULL)))
+    // setting up the signal handler
+    signal_action action;
+    action.sa_flags = SA_SIGINFO | SA_NODEFER;
+    sigemptyset(&action.sa_mask);
+    action.sa_sigaction = segmentation_handler;
+    if failure_check (sigaction(SIGSEGV, &action, null_value))
     {
-        perror("sigaction failed! (main)");
+        perror("Could not set signal handler (main : sigaction)");
         exit(EXIT_FAILURE);
     }
 
-    // const char_pointer elf_path = argument_values[1];
-    const string elf_path = argument_values[1];
-    file_descriptor elf_file = open_file(elf_path);
-    elf_header elf_hdr;
-    read_file(elf_file, &elf_hdr, sizeof(elf_header));
-
-    // Checks for the ELF file
-    boolean is_valid_elf = check_elf_file(elf_file, elf_hdr);
-    if (false_check(is_valid_elf))
+    const string file_path = executable_file_path;
+    boolean file_check = check_elf_file(elf_file, main_elf_hdr);
+    if false_check (file_check)
     {
-        close_file(elf_file);
+        perror("File is not an ELF file (main)");
         exit(EXIT_FAILURE);
     }
 
-    // loading and execution of the ELF file
     load_and_run_elf(executable_file_path);
 
-    // cleanup of the resources
     loader_cleanup();
 
-    close_file(elf_file);
-
-    print_results(faults, allocations, fragmentations);
-
+    print_results(page_faults, page_allocations, total_internal_fragmentation);
 
     return EXIT_SUCCESS;
 }

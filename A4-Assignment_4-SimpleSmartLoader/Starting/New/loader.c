@@ -23,18 +23,18 @@ static signal_handler segmentation_handler(signal_number signal, siginfo_pointer
     void_pointer aligned_fault_address = (void_pointer)((uintptr_t)fault_adress & ~(page_size - 1));
 
     program_header_pointer fault_segment;
-    index segment_index = 0;
+    index segment_index;
     boolean segment_found = false;
-    for (; segment_index < main_elf_hdr->e_phnum; segment_index++)
+    for (segment_index = 0; segment_index < main_elf_hdr->e_phnum; segment_index++)
     {
         fault_segment = &main_program_hdr[segment_index];
-        if (((void_pointer)fault_segment->p_vaddr < fault_adress) && ((void_pointer)(fault_segment->p_vaddr) + fault_segment->p_memsz > fault_adress))
+        if (((void_pointer)fault_segment->p_vaddr <= fault_adress) && ((void_pointer)(fault_segment->p_vaddr) + fault_segment->p_memsz > fault_adress))
         {
             segment_found = true;
             break;
         }
     }
-    if false_check (segment_found)
+    if (false_check(segment_found) || (segment_index == main_elf_hdr->e_phnum))
     {
         perror("Segment not found (segmentation_handler)");
         exit(EXIT_FAILURE);
@@ -59,43 +59,43 @@ static signal_handler segmentation_handler(signal_number signal, siginfo_pointer
         exit(EXIT_FAILURE);
     }
 
-    memory_list = allocate_memory(memory_list, (void_pointer)virtual_memory);
-    
     increment_page_allocations;
     page page_number = (((bytes)aligned_fault_address - fault_segment->p_vaddr) / page_size);
 
+    // add current memory to the list.
+    memory_list = allocate_memory(memory_list, (void_pointer)virtual_memory);
+    
     // calculating internal fragmentation
     if ((fault_segment->p_memsz - (page_number * page_size)) < page_size)
     {
-        total_internal_fragmentation += (page_size*(page_number + 1) - fault_segment->p_memsz);
+        total_internal_fragmentation += ((page_size*(page_number + 1)) - fault_segment->p_memsz);
     }
 }
 
 // functions for memory management
 void free_memory(assigned_memory_pointer memory)
 {
-    if null_check (memory)
+    if null_check(memory)
     {
         return;
     }
 
     free_memory(memory->next);
-    if failure_check (munmap(memory->memory, page_size))
+    if failure_check(munmap(memory->memory, page_size))
     {
         perror("Could not unmap memory (free_memory)");
-        exit(EXIT_FAILURE);
     }
     free(memory);
 }
 assigned_memory_pointer allocate_memory(assigned_memory_pointer memory_list, void_pointer address)
 {
-    if null_check (memory_list)
+    if null_check(memory_list)
     {
-        memory_list = (assigned_memory_pointer)malloc(sizeof(assigned_memory));
+        memory_list = malloc(sizeof(assigned_memory));
         memory_list->memory = address;
-        memory_list->next = null_value;
         return memory_list;
     }
+
     memory_list->next = allocate_memory(memory_list->next, address);
     return memory_list;
 }
@@ -103,7 +103,7 @@ assigned_memory_pointer allocate_memory(assigned_memory_pointer memory_list, voi
 // functions for loader
 void loader_cleanup()
 {
-    if failure_check (close_file(elf_file))
+    if failure_check(close_file(elf_file))
     {
         perror("Could not close file (loader_cleanup)");
         exit(EXIT_FAILURE);
@@ -116,35 +116,35 @@ void loader_cleanup()
 }
 void load_and_run_elf(string file_path)
 {
-    if null_check (file_path)
+    if null_check(file_path)
     {
         perror("File path is null (load_and_run_elf)");
         exit(EXIT_FAILURE);
     }
 
     elf_file = open_file(file_path);
-    if failure_check (elf_file)
+    if failure_check(elf_file)
     {
         perror("Could not open file (load_and_run_elf)");
         exit(EXIT_FAILURE);
     }
 
     // getting the elf header
-    main_elf_hdr = (elf_header_pointer)malloc(sizeof(elf_header));
-    if failure_check (read_file(elf_file, main_elf_hdr, sizeof(elf_header)))
+    main_elf_hdr = malloc(sizeof(elf_header));
+    if failure_check(read_file(elf_file, main_elf_hdr, sizeof(elf_header)))
     {
         perror("Could not read file (load_and_run_elf : elf header)");
         exit(EXIT_FAILURE);
     }
 
     // getting the program header
-    main_program_hdr = (program_header_pointer)malloc((sizeof(program_header) * main_elf_hdr->e_phnum));
-    if failure_check (file_seek(elf_file, main_elf_hdr->e_phoff, SEEK_SET))
+    main_program_hdr = malloc((sizeof(program_header) * main_elf_hdr->e_phnum));
+    if failure_check(file_seek(elf_file, main_elf_hdr->e_phoff, SEEK_SET))
     {
         perror("Could not seek file (load_and_run_elf : program header)");
         exit(EXIT_FAILURE);
     }
-    if failure_check (read_file(elf_file, main_program_hdr, (sizeof(program_header) * main_elf_hdr->e_phnum)))
+    if failure_check(read_file(elf_file, main_program_hdr, (sizeof(program_header) * main_elf_hdr->e_phnum)))
     {
         perror("Could not read file (load_and_run_elf : program header)");
         exit(EXIT_FAILURE);
@@ -224,7 +224,7 @@ int main(take_input)
     action.sa_flags = SA_SIGINFO | SA_NODEFER;
     sigemptyset(&action.sa_mask);
     action.sa_sigaction = segmentation_handler;
-    if failure_check (sigaction(SIGSEGV, &action, null_value))
+    if failure_check(sigaction(SIGSEGV, &action, null_value))
     {
         perror("Could not set signal handler (main : sigaction)");
         exit(EXIT_FAILURE);
@@ -235,9 +235,9 @@ int main(take_input)
     elf_header elf_hdr;
     read_file(elf_file, &elf_hdr, sizeof(elf_header));
     boolean file_check = check_elf_file(elf_file, elf_hdr);
-    if false_check (file_check)
+    if false_check(file_check)
     {
-        perror("File is not an ELF file (main)");
+        perror("File is not an ELF file (main)\n");
         exit(EXIT_FAILURE);
     }
 

@@ -3,6 +3,8 @@
 
 // global variables for loader
 signal_action sig_act;
+
+
 elf_header_pointer comman_elf_header;
 program_header_pointer comman_program_header;
 file_descriptor comman_elf_file;
@@ -54,6 +56,7 @@ static signal_handler segmentation_handler(signal_number signal, siginfo_pointer
     }
 
     if (false_check(segment_found))
+    // if (offset_in_segment == comman_elf_header->e_phnum)
     {
         fprintf(stderr, "\nCould not find the segment for the fault address: %p\n", fault_address);
         exit(EXIT_FAILURE);
@@ -149,7 +152,7 @@ void load_and_run_elf(string file_path)
     }
 
     // open the file
-    file_descriptor comman_elf_file = open_file(file_path);
+    comman_elf_file = open_file(file_path);
     if (failure_check(comman_elf_file))
     {
         perror("Error opening file. (load_and_run_elf)");
@@ -171,7 +174,7 @@ void load_and_run_elf(string file_path)
         perror("Error seeking file. (Program Header Seek) (load_and_run_elf)");
         exit(EXIT_FAILURE);
     }
-    if (failure_check((comman_elf_file, comman_program_header, sizeof(program_header))))
+    if (failure_check(read_file(comman_elf_file, comman_program_header, (comman_elf_header->e_phnum * sizeof(program_header)))))
     {
         perror("Error reading file. (Program Header Reading) (load_and_run_elf)");
         exit(EXIT_FAILURE);
@@ -189,7 +192,7 @@ void load_and_run_elf(string file_path)
 }
 boolean check_elf_file(file_descriptor file, elf_header elf_hdr)
 {
-    if (null_check(file))
+    if (null_check(file) || failure_check(file))
     {
         printf("No elf file found\n");
         return false;

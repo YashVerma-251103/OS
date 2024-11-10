@@ -24,17 +24,15 @@ static signal_handler segmentation_handler(signal_number signal, siginfo_pointer
 
     program_header_pointer fault_segment;
     index segment_index;
-    boolean segment_found = false;
     for (segment_index = 0; segment_index < main_elf_hdr->e_phnum; segment_index++)
     {
         fault_segment = &main_program_hdr[segment_index];
         if (((void_pointer)fault_segment->p_vaddr <= fault_adress) && ((void_pointer)(fault_segment->p_vaddr) + fault_segment->p_memsz > fault_adress))
         {
-            segment_found = true;
             break;
         }
     }
-    if (false_check(segment_found) || (segment_index == main_elf_hdr->e_phnum))
+    if ((segment_index == main_elf_hdr->e_phnum))
     {
         perror("Segment not found (segmentation_handler)");
         exit(EXIT_FAILURE);

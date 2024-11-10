@@ -158,7 +158,8 @@ void load_and_run_elf(string file_path)
     int return_value = _start();
     printf("User _start return value = %d\n", return_value);
 }
-boolean check_elf_file(file_descriptor file, elf_header_pointer elf_hdr)
+// boolean check_elf_file(file_descriptor file, elf_header_pointer elf_hdr)
+boolean check_elf_file(file_descriptor file, elf_header elf_hdr)
 {
     if failure_check(file)
     {
@@ -230,7 +231,10 @@ int main(take_input)
     }
 
     const string file_path = executable_file_path;
-    boolean file_check = check_elf_file(elf_file, main_elf_hdr);
+    elf_file = open_file(file_path);
+    elf_header elf_hdr;
+    read_file(elf_file, &elf_hdr, sizeof(elf_header));
+    boolean file_check = check_elf_file(elf_file, elf_hdr);
     if false_check (file_check)
     {
         perror("File is not an ELF file (main)");

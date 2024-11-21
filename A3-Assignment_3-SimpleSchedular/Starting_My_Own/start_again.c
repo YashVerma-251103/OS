@@ -241,7 +241,7 @@ unsigned long elapse_time(stime *start_time)
 {
     stime end_time;
     gettimeofday(&end_time, null_status);
-    return ((end_time.tv_sec * 1000000) + end_time.tv_usec) - ((start_time->tv_sec * 1000000) + start_time->tv_usec) / 1000;
+    return ((((end_time.tv_sec * 1000000) + end_time.tv_usec) - ((start_time->tv_sec * 1000000) + start_time->tv_usec)) / 1000);
 }
 void continue_process(stp *process)
 {
@@ -701,12 +701,10 @@ int main(int argc, char *argv[])
                 if ((pq1null) && (pq2null) && (pq3null) && (pq4null))
                 {
                     schedular_start = false;
+                    print_schedular_history();
                 }
             }
         }
-
-        print_schedular_history();
-
         schedular_cleanup_exit(shm);
     }
     else

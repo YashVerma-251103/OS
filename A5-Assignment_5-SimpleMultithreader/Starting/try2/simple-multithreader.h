@@ -52,9 +52,9 @@ int main(int argc, char **argv)
 
 #define main user_main
 
-
 /* Definitions for better code understanding */
 #define ptr *
+#define address_of(object) &object
 #define offset int
 #define limit int
 #define single_parallel_task std::function<void(int)>
@@ -66,7 +66,6 @@ int main(int argc, char **argv)
 #define last_index 0
 #define second_last_index 1
 #define range int
-
 
 /* Structures for arguments for threads */
 struct arg_single_task
@@ -89,11 +88,9 @@ struct arg_double_task
 #define st_arg struct arg_single_task
 #define dt_arg struct arg_double_task
 
-
 /* Macros for loops */
-#define limits_loop for(index i = lower; i < upper; i++)
-#define loop_run_for_total_threads(last_index) for(index i = 0; i < number_of_threads - last_index; i++)
-
+#define limits_loop for (index i = lower; i < upper; i++)
+#define loop_run_for_total_threads(last_index) for (index i = 0; i < number_of_threads - last_index; i++)
 
 /* Helper Functions */
 // single for loop
@@ -103,9 +100,7 @@ void ptr run_parallel_single_for_loop(void ptr args)
   limit upper = ((st_arg ptr)args)->upper_limit;
   limit lower = ((st_arg ptr)args)->lower_limit;
 
-  limits_loop
-    (ptr (function))(i);
-  
+  limits_loop(ptr(function))(i);
 
   return NULL;
 }
@@ -121,13 +116,10 @@ void ptr run_parallel_double_for_loop(void ptr args)
   limit lower = ((dt_arg ptr)args)->lower_limit;
   int size = ((dt_arg ptr)args)->size;
 
-  limits_loop
-    (ptr (function))((i / size + x_offset), (i % size + y_offset));
+  limits_loop(ptr(function))((i / size + x_offset), (i % size + y_offset));
 
   return NULL;
 }
-
-
 
 /* Function to run parallel for loop */
 // single for loop runner
@@ -135,7 +127,7 @@ void parallel_for(int low, int high, single_parallel_task &&lambda, int number_o
 {
   timeval start, end; // time values for getting duration
 
-  gettimeofday(&start, NULL);
+  gettimeofday(address_of(start), NULL);
 
   thread threads[number_of_threads - 1];
   st_arg args[number_of_threads];
@@ -146,7 +138,7 @@ void parallel_for(int low, int high, single_parallel_task &&lambda, int number_o
   {
     args[i].upper_limit = ((i + 1) * chunk_size);
     args[i].lower_limit = i * chunk_size;
-    args[i].function = &lambda;
+    args[i].function = address_of(lambda);
     if (i == number_of_threads - 1)
     {
       args[i].upper_limit = high;
@@ -155,26 +147,26 @@ void parallel_for(int low, int high, single_parallel_task &&lambda, int number_o
 
   // constructing threads
   loop_run_for_total_threads(second_last_index)
-      pthread_create(&threads[i], NULL, run_parallel_single_for_loop, (void ptr)&args[i]);
+      pthread_create(address_of(threads[i]), NULL, run_parallel_single_for_loop, (void ptr) address_of(args[i]));
 
   // main thread
-  run_parallel_single_for_loop((void ptr)&args[number_of_threads - 1]);
+  run_parallel_single_for_loop((void ptr) address_of(args[number_of_threads - 1]));
 
   // joining threads
   loop_run_for_total_threads(second_last_index)
       pthread_join(threads[i], NULL);
 
-  gettimeofday(&end, NULL);
+  gettimeofday(address_of(end), NULL);
 
   printf("Total Execution Time: %f\n", (((double)(end.tv_usec - start.tv_usec) / 1000000) + ((double)(end.tv_sec - start.tv_sec))));
 }
 
 // double for loop runner
-void parallel_for(int low_1, int high_1, int low_2, int high_2, double_parallel_task && lambda , int number_of_threads)
+void parallel_for(int low_1, int high_1, int low_2, int high_2, double_parallel_task &&lambda, int number_of_threads)
 {
   timeval start, end; // time values for getting duration
 
-  gettimeofday(&start, NULL);
+  gettimeofday(address_of(start), NULL);
 
   range r1 = (high_1 - low_1), r2 = (high_2 - low_2);
   chunk chunk_size = ((r1 * r2) / number_of_threads);
@@ -182,12 +174,11 @@ void parallel_for(int low_1, int high_1, int low_2, int high_2, double_parallel_
   thread threads[number_of_threads - 1];
   dt_arg args[number_of_threads];
 
-
   loop_run_for_total_threads(last_index)
   {
     args[i].upper_limit = ((i + 1) * chunk_size);
     args[i].lower_limit = i * chunk_size;
-    args[i].function = &lambda;
+    args[i].function = address_of(lambda);
     args[i].size = r1;
     args[i].x_offset = low_1;
     args[i].y_offset = low_2;
@@ -199,16 +190,16 @@ void parallel_for(int low_1, int high_1, int low_2, int high_2, double_parallel_
 
   // constructing threads
   loop_run_for_total_threads(second_last_index)
-      pthread_create(&threads[i], NULL, run_parallel_double_for_loop, (void ptr)&args[i]);
+      pthread_create(address_of(threads[i]), NULL, run_parallel_double_for_loop, (void ptr) address_of(args[i]));
 
   // main thread
-  run_parallel_double_for_loop((void ptr)&args[number_of_threads - 1]);
+  run_parallel_double_for_loop((void ptr) address_of(args[number_of_threads - 1]));
 
   // joining threads
   loop_run_for_total_threads(second_last_index)
       pthread_join(threads[i], NULL);
 
-  gettimeofday(&end, NULL);
+  gettimeofday(address_of(end), NULL);
 
   printf("Total Execution Time: %f\n", (((double)(end.tv_usec - start.tv_usec) / 1000000) + ((double)(end.tv_sec - start.tv_sec))));
 }

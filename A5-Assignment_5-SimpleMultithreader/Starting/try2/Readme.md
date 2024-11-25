@@ -6,7 +6,7 @@
 ### Group ID = 110
 
 ### GitHub Repo : 
-[GitHub_Page] (https://github.com/YashVerma-251103/OS/tree/beaf8e286708fd6fc5d29d5dfb1728abc54f2faf/A5-Assignment_5-SimpleMultithreader)
+[GitHub_Page](https://github.com/YashVerma-251103/OS/tree/beaf8e286708fd6fc5d29d5dfb1728abc54f2faf/A5-Assignment_5-SimpleMultithreader)
 
 This project demonstrates parallel computing techniques using C++ and pthreads. It includes examples of parallel vector addition and parallel matrix multiplication.
 
